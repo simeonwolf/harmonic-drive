@@ -8,7 +8,7 @@ class InventorAPI():
         
         template = "C:\\Users\\Public\\Documents\\Autodesk\\Inventor 2024\\Templates\\de-DE\Standard.ipt"
         
-        #template = "C:\Autodesk\Inventor_2022" + chr(92) + "templates\igus_Bauteil.ipt"
+        #template = "C:\Autodesk\Inventor_2022" + chr(92) + "templates\_Bauteil.ipt"
         self.invDoc = self.oApp.Documents.Add(constants.kPartDocumentObject, template, True)
         self.tg = self.oApp.TransientGeometry
         self.invPartDoc = win32com.client.CastTo(self.invDoc, 'PartDocument')
