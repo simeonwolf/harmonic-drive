@@ -290,12 +290,12 @@ class Wavegenerator():
     def __init__(self, shape = 1):
         self.__dict__['a'] = 1 #Large elliptical semi-axis
         self.__dict__['b'] = 0.9 #Small elliptical semi-axis
+        self.__dict__['arc'] = 2 * np.pi/180
         
         if shape == 1:
             self.__dict__['shape'] = 'elliptical'
         elif shape == 2:
             self.__dict__['shape'] = '345polynomial'
-            self.__dict__['arc'] = np.pi/10
         
         self.profil = []
         
@@ -595,12 +595,7 @@ class HarmonicDrive():
                 s_i = s_i - u_nf
             t = np.interp(s_i,l_nf,l_nf_t)
             
-            tangent = self.wg.tangent_aequidistant(q_nf, t) #TODO
-            
-            tangent = np.array([np.interp(t,l_nf_t,gradient[:,0]),
-                                np.interp(t,l_nf_t,gradient[:,1])])
-            
-            tangent = 1/np.linalg.norm(tangent) * tangent
+            tangent = self.wg.tangent_aequidistant(q_nf, t)
             
             v_r = tangent * (a + q_nf)       
             v_r = np.dot(ROT(phi_wg_i), v_r)
@@ -792,75 +787,3 @@ class HarmonicDrive():
         flank_ds = np.array(flank_ds)
         self.ds.flank = flank_ds
         return flank_ds
-    
-    
-    
-#%% DEBUG
-'''
-def präsi():
-    hd.i = -20
-    
-    fs.d_i = 75
-    fs.s_st = 2.5
-    fs.d_nf = 77.5
-    fs.d_f = 80
-    fs.d = 83
-    fs.d_h = 86
-    
-    fs.c = 1
-    fs.r_fh = 8
-    fs.r_ff = 8
-    fs.r_hr = 1
-    fs.r_fr = 1
-    
-    hd.d_br = 0.3
-    
-fs = Flexspline()
-wg = Wavegenerator(shape = 2)
-wg.arc = np.pi/180 * 10
-cs = CircularSpline()
-ds = DynamicSpline()
-
-hd = HarmonicDrive(fs, wg, cs, ds)
-
-präsi()
-
-hd.update_parameter()
-hd.calculate_kinematics(num_of_discretization=10000)
-#hd.update_parameter()
-
-def pl_a(array, **kwargs):
-    ax.plot(array[:,0], array[:,1], **kwargs)
-
-plt.close('all')
-fig = plt.gcf()
-ax = plt.gca()
-
-
-# b = np.linspace(10, 50, 100)
-# res = np.zeros(len(b))
-
-# for i in range(len(b)):
-#     res[i] = hd.optimize_u_nf__b(b[i], wg.a, hd.q_nf, fs.u_nf)
-#ax.plot(b,res)
-
-
-hd.calculate_CS2_i()
-
-patch_fs = plot_polygon(ax, fs.polygon_deformed(),
-                        ec = "black",
-                        lw = 1,
-                        fc = "#e30066")
-
-pl_a(hd.r_z)
-pl_a(hd.neutral_fibre())
-
-
-
-ax.axis('equal')
-ax.grid(which='major', color='#DDDDDD', linewidth=1)
-ax.grid(which='minor', color='#EEEEEE', linestyle=':', linewidth=0.8)
-ax.minorticks_on()
-
-fig.tight_layout()
-'''
