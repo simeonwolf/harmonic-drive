@@ -15,53 +15,37 @@ import matplotlib.patches as mpl_patches
 from tqdm import tqdm
 
 def ROT(phi):
+    '''2x2 rotation matrix with angle phi'''
     c, s = np.cos(phi), np.sin(phi)
     return np.array([[c, -s],
                      [s,  c]])
 
-def ROTATE(vec_array, phi):      
-     return np.array([np.dot(ROT(phi), xy) for xy in vec_array])
+def ROTATE(vec_arr, phi):
+    '''
+    rotates a curve with angle phi around the origin/z-axis
+    curve --> (2,)-vectors in an (:,2)-array'''
+    return np.array([np.dot(ROT(phi), xy) for xy in vec_arr])
 
 def MIRROR(vec_arr, axis = 'x'):
+    '''
+    mirrors a curve on the x or y-axis
+    curve --> (2,)-vectors in an (:,2)-array'''
     if axis == 'x':
         return np.flip(np.array([np.array([x,-y]) for x,y in vec_arr]), axis = 0)
     if axis == 'y':
         return np.flip(np.array([np.array([-x,y]) for x,y in vec_arr]), axis = 0)
 
-def aequidistant(profil, q):
-    tangent = np.gradient(profil)[0]
-    normal = np.array([np.array([y,-x])/np.linalg.norm(np.array([x,y])) for x,y in tangent])
-    return profil + normal * q
-
-def length_vec_array(vec_array):
-    tangent = np.gradient(vec_array)[0]
+def length_vec_array(vec_arr):
+    '''
+    length of a curve (approximation)
+    curve --> (2,)-vectors in an (:,2)-array'''
+    tangent = np.gradient(vec_arr)[0]
     return np.sum( np.array( [np.linalg.norm(t) for t in tangent] ) )
 
-def ellipsis(a, b, num_of_discretization = 1000):
-    t = np.linspace(0,2*np.pi,num_of_discretization)
-    
-    return np.array([np.array([a * np.cos(t),
-                               b * np.sin(t)]) for t in t])
-
-def point_aequidistant_ellipsis(a, b, q, t):
-    x = a * np.cos(t)
-    y = b * np.sin(t)
-    
-    n = np.array([x/a**2,y/b**2])
-    n = 1/np.linalg.norm(n) * n
-    
-    return np.array([x, y] + n * q)
-
-def tangent_aequidistant_ellipsis(a, b, q, t):
-    x = a * np.cos(t)
-    y = b * np.sin(t)
-    
-    n = np.array([x/a**2,y/b**2])
-    n = 1/np.linalg.norm(n) * n
-    
-    return np.array([-n[1], n[0]])
-
 def gear_from_flank(flank, z):
+    '''
+    Generates the contour of the gear from a tooth flank and the number of teeth by rotating and mirroring
+    tooth flank --> curve in the first quadrant on the x-axis'''
     gear = flank
     mirrored = MIRROR(flank)
 
@@ -74,79 +58,97 @@ def gear_from_flank(flank, z):
     return gear
 
 def plot_polygon(ax, poly, **kwargs):
+    '''
+    plots a shapely polygon to pyplot axis, supports polygons with holes'''
     path = Path.make_compound_path(
         Path(np.asarray(poly.exterior.coords)[:, :2]),
         *[Path(np.asarray(ring.coords)[:, :2]) for ring in poly.interiors])
-
+    
     patch = PathPatch(path, **kwargs)
     collection = PatchCollection([patch], **kwargs)
-    
     ax.add_collection(collection, autolim=True)
-    ax.autoscale_view()
+    
     return collection
 
+def plot_va(ax, vec_arr, **kwargs):
+    '''
+    plots a curve to pyplot axis
+    curve --> (2,)-vectors in an (:,2)-array'''
+    ax.plot(vec_arr[:,0], vec_arr[:,1], **kwargs)
+
+def plot_grid(ax):
+    '''
+    adds a grid to pyplot axis'''
+    ax.axis('equal')
+    ax.grid(which='major', color='#DDDDDD', linewidth=1)
+    ax.grid(which='minor', color='#EEEEEE', linestyle=':', linewidth=0.8)
+    ax.minorticks_on()
+    ax.set_axisbelow(True)
+
 class Flexspline():
-    
+    '''
+    represents the Flexspline (FS) of a Harmonic Drive gearbox'''
     def __init__(self):
-        self.__is_init = True
+        #parameters that trigger a parameter update when changed:
+        self.update_parameter = {'z', 'd_i', 's_st', 'd_nf', 'd_f', 'd', 
+                                 'd_h', 'alpha', 'c', 'r_fh', 'r_ff', 
+                                 'r_hr', 'r_fr', 'h_t'}
         
-        self.parameter = {'z', 'd_i', 's_st', 'd_nf', 'd_f', 'd', 'd_h', 'alpha', 'c', 'r_fh', 'r_ff', 'r_hr', 'r_fr', 'h_t'}
-        
-        #general:
+        #---general parameters---:
         self.z      = 20    #number of teeth
-        self.d_i    = 75     #Inner diameter
-        self.s_st   = 2.5    #Sprocket Thickness
+        self.d_i    = 75    #Inner diameter
+        self.s_st   = 2.5   #Sprocket Thickness
         self.d_nf   = []    #Neutral Fiber Diameter
-        self.u_nf   = []      #circumference neutral fiber
+        self.u_nf   = []    #circumference neutral fiber
         self.d_f    = []    #Foot circle diameter
         self.d      = 81    #Pitch circle diameter
         self.d_h    = 82    #Head circle diameter
 
-        #tooth:
-        self.alpha  = 20*np.pi/180 #Tooth flank angle
-        self.c      = 1     #Tooth space ratio
-        self.r_fh   = 5     #Head flank radius
-        self.r_ff   = 5     #Foot flank radius
-        self.r_hr   = 0.3   #Head rounding
-        self.r_fr   = 0.3   #Foot rounding
-        self.h_t    = []    #Tooth Height
+        #---tooth parameters---:
+        self.alpha  = 20*np.pi/180  #Tooth flank angle
+        self.c      = 1             #Tooth space ratio
+        self.r_fh   = 5             #Head flank radius
+        self.r_ff   = 5             #Foot flank radius
+        self.r_hr   = 0.3           #Head rounding
+        self.r_fr   = 0.3           #Foot rounding
+        self.h_t    = []            #Tooth Height
 
-        self.flank = []
-        self.tooth = []
+        self.flank = [] #curve of tooth-flank
+        self.tooth = [] #curve of tooth
     
         self.r_z_i         = []
         self.CS2_i         = []
         self.inside_fibre  = []
-    
-        self.__is_init = False
-        
-        self.update_parameter()
+
+        self.update()
 
     def __setattr__(self, name, value):
-        #object.__setattr__(self, name, value)
-        if name == '_Flexspline__is_init':
+        if name == 'update_parameter':
             self.__dict__[name] = value
-        if self.__is_init:
-            self.__dict__[name] = value   
+            return
+        
+        if name in self.update_parameter:
+            self.__dict__[name] = value
+            try:
+                self.update()
+            except:
+                pass
         else:
-            if name in self.parameter:
-                self.__dict__[name] = value
-                self.update_parameter()
-            else:
-                self.__dict__[name] = value
-                
-    def update_parameter(self):        
-        #object.__setattr__(self, name, value)
-        self.__dict__['d_nf']   = self.d_i + self.s_st
-        self.__dict__['d_f']    = self.d_i + self.s_st * 2 
-        self.__dict__['u_nf']   = self.d_nf * np.pi
-        self.__dict__['h_t']    = 0.5*(self.d_h-self.d_f)
+            self.__dict__[name] = value
         
-        self.flank              = self.calculate_flank(num_of_discretization = 50)
-        self.tooth              = self.calculate_tooth()
+    def update(self):
+        self.d_nf = self.d_i + self.s_st
+        self.d_f  = self.d_i + self.s_st * 2 
+        self.u_nf = self.d_nf * np.pi
+        self.h_t  = 0.5*(self.d_h-self.d_f)
         
-    def calculate_flank(self, num_of_discretization = 1000):
+        self.flank = self.calculate_flank(num_of_discretization = 100)
+        self.tooth = self.calculate_tooth()
         
+    def calculate_flank(self, num_of_discretization = 100):
+        '''
+        calculates the tooth flank from 6 tangential arc sections with the radii r_fl_i
+        Part of the tooth flank are the head and foot circle (r_fl_1, r_fl_6)'''
         r_fl_1 = self.d_h/2
         r_fl_2 = self.r_hr
 
@@ -224,6 +226,8 @@ class Flexspline():
                 flank[idx] = circular_arcs[5]["m"] + circular_arcs[5]["r"] * np.array([np.cos(beta_flank[idx]),np.sin(beta_flank[idx])])
                 continue
         
+        self.circular_arcs = circular_arcs
+        
         self.r_fl_2 = r_fl_2    
         self.r_fl_3 = r_fl_3
         self.r_fl_4 = r_fl_4
@@ -239,29 +243,37 @@ class Flexspline():
         return flank
     
     def calculate_flank_normal(self, num_of_discretization = 100):
-        flank = self.calculate_flank(num_of_discretization = 100)
+        '''
+        returns the tooth flank and the corresponding normal vectors (normalized)
+        in the tooth coordinate system
+        ! recalculation of the tooth flank according to num_of_discretization !'''
+        flank = self.calculate_flank(num_of_discretization = num_of_discretization)
         flank = np.array([np.array([-y,x-self.d_nf/2]) for x,y in flank])
         
+        #TODO More precise way to calculate the normal vector from the 
+        #definition of the tooth flank:
         tangent = np.gradient(flank)[0]
-        
         normal = np.array([[y,-x]for x,y in tangent])
         normal_flank = np.array([1/np.linalg.norm(n)*n for n in normal])
 
         return flank, normal_flank
     
     def calculate_tooth(self):
-        flank = self.flank
-        tooth_flank_mirrored = MIRROR(flank)
-        tooth = np.append(tooth_flank_mirrored, flank, axis = 0)
-                
-        tooth = np.array([np.array([-y,x-self.d_nf/2]) for x,y in tooth])
-        
-        return tooth
+        '''
+        returns the tooth (two flanks) in the tooth coordinate system'''
+        tooth_flank_mirrored = MIRROR(self.flank)
+        tooth = np.append(tooth_flank_mirrored, self.flank, axis = 0)
+                        
+        return np.array([np.array([-y,x-self.d_nf/2]) for x,y in tooth])
     
     def gear(self):
+        '''
+        contour of the gear'''
         return gear_from_flank(self.flank, self.z)
     
     def polygon(self):
+        '''
+        displays the gear contour as a plygon (e.g. to display the gear wheel in color)'''
         gear = self.gear()
         gear_polygon = sp.Polygon(gear).buffer(0)
         
@@ -271,6 +283,10 @@ class Flexspline():
         return gear_polygon.difference(inner_circle_polygon)
     
     def gear_deformed(self):
+        '''
+        deformed contour of the gear
+        ! only works after r_z_i (vectors to toot i) and CS2_i (coordinate system of toot i)
+        have been set'''
         gear_deformed = self.r_z_i[0] + np.array([np.dot(self.CS2_i[0], xy) for xy in self.tooth])
         for i in range(1,int(self.z)):
             tooth_i = np.array([self.r_z_i[i] + np.dot(self.CS2_i[i], xy) for xy in self.tooth])
@@ -279,6 +295,9 @@ class Flexspline():
         return gear_deformed
     
     def polygon_deformed(self):
+        '''
+        displays the deformed contour of the gear as a plygon (e.g. to display the gear wheel in color)
+        ! only works after r_z_i, CS2_i and inside_fibre have been set'''
         gear_deformed = self.gear_deformed()
         polygon_gear_deformed = sp.Polygon(gear_deformed).buffer(0)
         
@@ -308,8 +327,10 @@ class Wavegenerator():
     
     def calculate_profil(self, num_of_discretization = 1000):
         if self.shape == 'elliptical':
-            return ellipsis(self.a, self.b, num_of_discretization = num_of_discretization)
-        
+            t = np.linspace(0,2*np.pi,num_of_discretization)
+            return np.array([np.array([self.a * np.cos(t),
+                                       self.b * np.sin(t)]) for t in t])
+            
         if self.shape == '345polynomial':
             T = np.linspace(0,2*np.pi,num_of_discretization)
             quarter = int(num_of_discretization/4)

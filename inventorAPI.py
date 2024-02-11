@@ -19,29 +19,21 @@ class InventorAPI():
         
         xy_plane = self.invPartDoc.ComponentDefinition.WorkPlanes.Item(3)
         sketch = self.invPartDoc.ComponentDefinition.Sketches.Add(xy_plane)
-        
         pnts_inventor = self.oApp.TransientObjects.CreateObjectCollection()
-
         for idx in range(len(pnts)):
             
             x = pnts[idx, 0]/10
             y = pnts[idx, 1]/10
-            
             print("---", idx/len(pnts)*100, "% ---")
-
             #sketch.SketchPoints.Add(self.tg.CreatePoint2d(x,y))
-
             pnts_inventor.Add( self.tg.CreatePoint2d(x,y) )
          
         print("---Erzeugung des Splines---")
-            
         sketch.SketchSplines.Add(pnts_inventor, 26371)
 
 def main():
     inventor_api = InventorAPI()
-    
     punkte = np.array([[1,2], [3,4]])
-    
     inventor_api.pointsToSpline(punkte)
     
 if __name__ == "__main__":
