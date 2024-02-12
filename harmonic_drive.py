@@ -23,13 +23,13 @@ def ROT(phi):
 def ROTATE(vec_arr, phi):
     '''
     rotates a curve with angle phi around the origin/z-axis
-    curve --> (2,)-vectors in an (:,2)-array'''
+    curve --> ([x,y],)-vectors in an (:,2)-array'''
     return np.array([np.dot(ROT(phi), xy) for xy in vec_arr])
 
 def MIRROR(vec_arr, axis = 'x'):
     '''
     mirrors a curve on the x or y-axis
-    curve --> (2,)-vectors in an (:,2)-array'''
+    curve --> ([x,y],)-vectors in an (:,2)-array'''
     if axis == 'x':
         return np.flip(np.array([np.array([x,-y]) for x,y in vec_arr]), axis = 0)
     if axis == 'y':
@@ -38,7 +38,7 @@ def MIRROR(vec_arr, axis = 'x'):
 def length_vec_array(vec_arr):
     '''
     length of a curve (approximation)
-    curve --> (2,)-vectors in an (:,2)-array'''
+    curve --> ([x,y],)-vectors in an (:,2)-array'''
     tangent = np.gradient(vec_arr)[0]
     return np.sum( np.array( [np.linalg.norm(t) for t in tangent] ) )
 
@@ -73,7 +73,7 @@ def plot_polygon(ax, poly, **kwargs):
 def plot_va(ax, vec_arr, **kwargs):
     '''
     plots a curve to pyplot axis
-    curve --> (2,)-vectors in an (:,2)-array'''
+    curve --> ([x,y],)-vectors in an (:,2)-array'''
     ax.plot(vec_arr[:,0], vec_arr[:,1], **kwargs)
 
 def plot_grid(ax):
@@ -87,7 +87,8 @@ def plot_grid(ax):
 
 class Flexspline():
     '''
-    represents the Flexspline (FS) of a Harmonic Drive gearbox'''
+    represents the Flexspline (FS) of a Harmonic Drive gearbox
+    --> generates the initial tooth flank geometry of the Flexspline'''
     def __init__(self):
         #parameters that trigger a parameter update when changed:
         self.update_parameter = {'z', 'd_i', 's_st', 'd', 
@@ -123,7 +124,6 @@ class Flexspline():
         self.update()
 
     def __setattr__(self, name, value):
-        print(name)
         if name == 'update_parameter':
             self.__dict__[name] = value
             return
@@ -307,32 +307,60 @@ class Flexspline():
         return polygon_gear_deformed.difference(inside_fibre_polygon)
         
 class Wavegenerator():
+    '''
+    represents the Wavegenerator (WG) of a Harmonic Drive gearbox
+    --> generates the initial profil of the wave generator
+    currently 2 available profil shapes:
+        1) Elliptical       (shape = 1)
+        2) 345-Polynomial   (shape = 2)''' 
     def __init__(self, shape = 1):
-        self.__dict__['a'] = 1 #Large elliptical semi-axis
-        self.__dict__['b'] = 0.9 #Small elliptical semi-axis
-        self.__dict__['arc'] = 2 * np.pi/180
+        #parameters that trigger a parameter update when changed:
+        self.update_parameter = {'a', 'b', 'arc', 'shape'}
+        
+        self.a = 1      #Large semi-axis
+        self.b = 0.9    #Small semi-axis
+        self.arc = 2 * np.pi/180 #angle of the arc, only used for 345polynomial profil
         
         if shape == 1:
-            self.__dict__['shape'] = 'elliptical'
+            self.shape = 'elliptical'
         elif shape == 2:
-            self.__dict__['shape'] = '345polynomial'
+            self.shape = '345polynomial'
         
         self.profil = []
         
     def __setattr__(self, name, value):
-        self.__dict__[name] = value
-        self.update_parameter()
+        if name == 'update_parameter':
+            self.__dict__[name] = value
+            return
+        
+        if name in self.update_parameter:
+            self.__dict__[name] = value
+            try:
+                self.update()
+            except:
+                pass
+        else:
+            self.__dict__[name] = value
+        
 
-    def update_parameter(self):
-        self.__dict__['profil'] = self.calculate_profil()
+    def update(self):
+        self.profil = self.calculate_profil(num_of_discretization = 1000)
     
     def calculate_profil(self, num_of_discretization = 1000):
+        '''
+        calculates the oval profile of the wave generator
+        1) Elliptical or
+        2) 345-Polynomial
+        --> returns curve in parameter representation
+        (curve --> ([x,y],)-vectors in an (:,2)-array)'''
+        
         if self.shape == 'elliptical':
             t = np.linspace(0,2*np.pi,num_of_discretization)
             return np.array([np.array([self.a * np.cos(t),
                                        self.b * np.sin(t)]) for t in t])
             
         if self.shape == '345polynomial':
+            #composed of 345 polynomial and circular arc
             T = np.linspace(0,2*np.pi,num_of_discretization)
             quarter = int(num_of_discretization/4)
             rho = np.zeros(int(quarter))
@@ -347,6 +375,11 @@ class Wavegenerator():
             return np.array([[r*np.cos(t), r*np.sin(t)] for r, t in zip(rho, T)])
         
     def calculate_profil_length(self, a, b):
+        '''
+        calculates the length of the profile of the wave generator
+        1) Elliptical       --> numerical approximation via elliptic integral (scipy.special.ellipe))
+        2) 345-Polynomial   --> numerical approximation via Newton-Cotes(mid-point rule)'''
+        
         if self.shape == 'elliptical':
             m = 1 - b**2/a**2
             return 4*a*scipy.special.ellipe(m)
@@ -371,7 +404,11 @@ class Wavegenerator():
             return 4*(l_1+l_2)
             
     def aequidistant(self, q, num_of_discretization = 1000):
+        '''
+        returns the curve equidistant to the profile of the wave generator (distance q)
+        (curve --> ([x,y],)-vectors in an (:,2)-array)'''
         aequidistant = np.zeros((num_of_discretization, 2))
+        
         if self.shape == 'elliptical':
             T = np.linspace(0,2*np.pi,num_of_discretization)
             for i in range(num_of_discretization):
@@ -407,6 +444,10 @@ class Wavegenerator():
             return aequidistant
     
     def point_aequidistant(self, q, t):
+        '''
+        returns a point to the angle t of a curve equidistant to the profile of
+        the wave generator (distance q)'''
+        
         if self.shape == 'elliptical':
             x = self.a * np.cos(t)
             y = self.b * np.sin(t)
@@ -440,6 +481,10 @@ class Wavegenerator():
                 return np.array([x,-y])
             
     def tangent_aequidistant(self, q, t):
+        '''
+        returns the tangent to a point with the angle t of a curve equidistant to the profile of
+        the wave generator (distance q)'''
+        
         if self.shape == 'elliptical':
             x = self.a * np.cos(t)
             y = self.b * np.sin(t)
@@ -471,14 +516,21 @@ class Wavegenerator():
                 return np.array([-x,y])
 
     def profil_rotated(self, phi):
+        '''
+        return the rotated profil of the Wavegenerator (angle phi)'''
         return ROTATE(self.profil, phi)
     
-    def polygon(self, phi = 0):
-        ALPHA = np.linspace(0,2*np.pi,100)
-        m = np.dot(ROT(phi), self.profil[0]) * 0.95
-        index_circle_polygon = sp.Polygon([[m[0] + np.cos(alpha), m[1] + np.sin(alpha)] for alpha in ALPHA])
+    def polygon(self, phi = 0, index = True):
+        '''displays rotated profil of the Wavegenerator (angle phi)
+        index: Possibility to add a hole to indicate the orientation'''
+        if index == True:
+            ALPHA = np.linspace(0,2*np.pi,100)
+            m = np.dot(ROT(phi), self.profil[0]) * 0.95
+            index_circle_polygon = sp.Polygon([[m[0] + np.cos(alpha), m[1] + np.sin(alpha)] for alpha in ALPHA])
+            return sp.Polygon(ROTATE(self.profil, phi)).buffer(0).difference(index_circle_polygon)
+        else:
+            return sp.Polygon(ROTATE(self.profil, phi)).buffer(0)
         
-        return sp.Polygon(ROTATE(self.profil, phi)).buffer(0).difference(index_circle_polygon)
 
 class CircularSpline():
     def __init__(self):
@@ -559,7 +611,7 @@ class HarmonicDrive():
         self.dynamic_spline = []
         
         self.update_parameter()
-        self.fs.update_parameter()
+        self.fs.update()
 
     def update_parameter(self):
         self.fs.z = 2*(-self.i)
@@ -732,7 +784,7 @@ class HarmonicDrive():
         
     def calculate_flank_cs(self):
         print('HD     >calculate_flank_cs()')
-        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=10)  
+        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=50)  
     
         kinematics =  self.kincematics(num_of_discretization=1000, phi_wg_lim = np.pi/2)
         (r_z, e_2_1, e_2_2) = kinematics[:3]
@@ -768,7 +820,7 @@ class HarmonicDrive():
 
     def calculate_flank_ds(self):
         print('HD     >calculate_flank_ds()')
-        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=10)  
+        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=50)  
         
         flank = MIRROR(flank, axis = 'y')
         normal = MIRROR(normal, axis = 'y')

@@ -12,7 +12,7 @@ import matplotlib.patches as mpl_patches
 import tkinter as tk
 from tkinter import ttk
 
-from harmonic_drive import Flexspline, Wavegenerator, CircularSpline, DynamicSpline, HarmonicDrive
+from harmonic_drive import *
 
 def create_entry_frame(parent_frame, label_text, default_value, row):
     ttk.Label(parent_frame, text=label_text).grid(row=row, column=0, sticky=tk.W)
@@ -31,16 +31,16 @@ def plot_settings(ax):
     
     ax.set_axis_off()
     
-def plot_polygon(ax, poly, **kwargs):
-    path = Path.make_compound_path(
-        Path(np.asarray(poly.exterior.coords)[:, :2]),
-        *[Path(np.asarray(ring.coords)[:, :2]) for ring in poly.interiors])
+# def plot_polygon(ax, poly, **kwargs):
+#     path = Path.make_compound_path(
+#         Path(np.asarray(poly.exterior.coords)[:, :2]),
+#         *[Path(np.asarray(ring.coords)[:, :2]) for ring in poly.interiors])
 
-    patch = PathPatch(path, zorder = 2, **kwargs)
-    collection = PatchCollection([patch], **kwargs)
-    ax.add_collection(collection, autolim=True)
+#     patch = PathPatch(path, zorder = 2, **kwargs)
+#     collection = PatchCollection([patch], **kwargs)
+#     ax.add_collection(collection, autolim=True)
     
-    return collection
+#     return collection
 
 def plot_circle(ax, r, center = [0,0], **kwargs):
     ALPHA = np.linspace(0,2*np.pi,1000)
@@ -128,7 +128,7 @@ def update_plot(calculate = True):
     wg.arc = float(entry_arc.get())*np.pi/180
     
     hd.update_parameter()
-    fs.update_parameter()
+    fs.update()
     
     #update entry values
     update_entrys()
