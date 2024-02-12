@@ -41,11 +41,11 @@ command to run if program contains helper info
 
 ## Authors
 
-Contributors names and contact info
+Simeon Wolf
+[![Linkedin](https://i.stack.imgur.com/gVE0j.png) LinkedIn](https://www.linkedin.com/)
+&nbsp;
 
-ex. Dominique Pizzie  
-ex. [@DomPizzie](https://twitter.com/dompizzie)
-
+www.linkedin.com/in/simeon-w-8a1445228
 
 ## License
 
