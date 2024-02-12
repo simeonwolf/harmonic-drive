@@ -517,7 +517,7 @@ class Wavegenerator():
 
     def profil_rotated(self, phi):
         '''
-        return the rotated profil of the Wavegenerator (angle phi)'''
+        returns the rotated profil of the Wavegenerator (angle phi)'''
         return ROTATE(self.profil, phi)
     
     def polygon(self, phi = 0, index = True):
@@ -533,16 +533,22 @@ class Wavegenerator():
         
 
 class CircularSpline():
+    '''
+    represents the Circular Spline (CS) of a Harmonic Drive gearbox'''
     def __init__(self):
         self.z      = []
         self.flank  = []
                 
     def gear(self):
-        #flank = np.array([xy for xy in self.flank if np.arctan(xy[1]/xy[0]) < np.pi/self.z*2 ])
-        #return gear_from_flank(flank, int(self.z))
-        return gear_from_flank(self.flank, int(self.z))
+        '''
+        contour of the gear'''
+        flank = np.array([xy for xy in self.flank if np.arctan(xy[1]/xy[0]) < np.pi/self.z*2 ])
+        return gear_from_flank(flank, int(self.z))
+        #return gear_from_flank(self.flank, int(self.z))
         
     def polygon(self):
+        '''
+        displays the gear contour as a plygon (e.g. to display the gear wheel in color)'''
         gear = self.gear()
         gear_polygon = sp.Polygon(gear).buffer(0)
         
@@ -553,29 +559,40 @@ class CircularSpline():
         return outer_circle_polygon.difference(gear_polygon)
     
 class DynamicSpline():
+    '''
+    represents the Dynamic Spline (DS) of a Harmonic Drive gearbox'''
     def __init__(self):
         self.z      = []
         self.flank  = []
                 
     def gear(self):
+        '''
+        contour of the gear'''
         flank = np.array([xy for xy in MIRROR(self.flank) if np.arctan(xy[1]/xy[0]) < np.pi/self.z ])
         return gear_from_flank(flank, self.z)
         
-    def polygon(self, phi = 0):        
+    def polygon(self, phi = 0, index = True):
+        '''
+        displays the gear contour as a plygon (e.g. to display the gear wheel in color)
+        index: Possibility to add a hole to indicate the orientation'''
         gear = self.gear()
-        gear_polygon = sp.Polygon(ROTATE(gear, phi)).buffer(0)
+        if index == True:
+            ALPHA = np.linspace(0,2*np.pi,int(len(gear)/100))
+            d_o = (gear[0,0]*2) * 1.05 #outer diameter
+            outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
+            m = np.dot(ROT(phi), gear[0]) * 1.05
+            index_circle_polygon = sp.Polygon([[m[0] + np.cos(alpha), m[1] + np.sin(alpha)] for alpha in ALPHA])
         
-        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/100))
-        d_o = (gear[0,0]*2) * 1.05
-        outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
+            gear_polygon = sp.Polygon(ROTATE(gear, phi)).buffer(0)
         
-        m = np.dot(ROT(phi), gear[0]) * 1.05
-        index_circle_polygon = sp.Polygon([[m[0] + np.cos(alpha), m[1] + np.sin(alpha)] for alpha in ALPHA])
-        
-        return outer_circle_polygon.difference(gear_polygon).difference(index_circle_polygon)
+            return outer_circle_polygon.difference(gear_polygon).difference(index_circle_polygon)
+        else:
+            return sp.Polygon(ROTATE(gear, phi)).buffer(0)
 
 class HarmonicDrive():
     def __init__(self, flexspline_inst, wavegenerator_inst, circularspline_inst, dynamicspline_inst):
+        #parameters that trigger a parameter update when changed:
+        self.update_parameter = {'i', 'd_br'}
         
         #objects
         self.fs = flexspline_inst
@@ -584,64 +601,75 @@ class HarmonicDrive():
         self.ds = dynamicspline_inst
         
         #parameter
-        self.i = -20 #Transmission Ratio (i_wg->ds) | i
-        self.d_br = 2 #Diameter Wavegenertor bearing Rolling element
-        self.phi_wg = 0 #Drive Angle Wavegenerator | phi_wg
+        self.i = -20        #Transmission Ratio (i_wg->ds)
+        self.phi_wg = 0     #Drive Angle Wavegenerator
+        self.phi_ds = 0     #Output Angle Dynamic Spline
         
-        self.q_nf = [] #Equidistant distance neutral fiber
+        self.d_br = 2       #Diameter Wavegenertor bearing Rolling element
+        self.q_nf = []      #Equidistant distance neutral fiber
+                
+    def __setattr__(self, name, value):
+        if name == 'update_parameter':
+            self.__dict__[name] = value
+            return
         
-        self.l_nf = []
-        self.l_nf_t = []
-        self.r_z = []
-        self.phi_wg_r_z = []
-        self.e_2_1 = []
-        self.e_2_2 = []
-        
-        self.r_z_i = []
-        self.e_2_1_i = []
-        self.e_2_2_i = []
-        
-        self._3_r_z = []
-        self._3_e_2_1 = []
-        self._3_e_2_2 = []
-        
-        self.phi_ds = []
-        
-        self.circular_spline = []
-        self.dynamic_spline = []
-        
-        self.update_parameter()
-        self.fs.update()
+        if name in self.update_parameter:
+            self.__dict__[name] = value
+            try:               
+                self.update()
+            except:
+                pass
+        elif name == 'phi_wg':
+            self.__dict__[name] = value
+            self.phi_ds = self.phi_wg/self.i
+        else:
+            self.__dict__[name] = value
 
-    def update_parameter(self):
+    def update(self):
+        print("hd --> update")
+        #Number of teeth
         self.fs.z = 2*(-self.i)
         self.cs.z = self.fs.z + 2
         self.ds.z = self.fs.z
         
         self.q_nf = self.d_br + self.fs.s_st/2
         
+        #calculate a and b according to the kinematic boundary conditions
         self.wg.a = self.fs.u_nf * (-self.i + 1)/-self.i * 1/(2*np.pi) - self.q_nf
         self.wg.b = optimize.newton(func = self.optimize_u_nf__b, x0 = self.wg.a/2, args=(self.wg.a, self.q_nf, self.fs.u_nf),)
             
     def optimize_u_nf__b(self, b, *args):
+        '''
+        optimization function for calculating a and b'''
         (a, q_nf, u_nf) = args
         lenght_neutral_fibre = self.wg.calculate_profil_length(a,b) + 2*np.pi*q_nf
         return lenght_neutral_fibre - u_nf
     
     def neutral_fibre(self, num_of_discretization = 1000):
+        '''
+        returns the neutral fiber (in the middle of the flexspline sprocket),
+        which corresponds to the aequidistant to the profile of the wave generator'''
         return self.wg.aequidistant(self.q_nf, num_of_discretization = num_of_discretization)
     
     def neutral_fibre_rotated(self, phi):
+        '''
+        returns the rotated neutral fibre (angle phi)'''
         neutral_fibre = self.neutral_fibre()
         return ROTATE(neutral_fibre, phi)
     
     def inside_fibre_rotated(self, phi, num_of_discretization = 1000):
+        '''
+        returns the rotated inside fibre of the Flexspline (angle phi)'''
         q_nf = self.q_nf
         s_st = self.fs.s_st
         inside_fibre = self.wg.aequidistant(q_nf-s_st/2, num_of_discretization = num_of_discretization)
         return ROTATE(inside_fibre, phi)
     
     def kincematics(self, num_of_discretization = 100000, phi_wg_lim  = 2*np.pi):
+        '''
+        calculates the kinematics implicitly using the euler-forward-method, 
+        the result is the trace of the point Z on the neutral fiber r_z
+        --> phi_wg_lim: up to which drive angle r_z is calculated'''
         a = self.wg.a
         q_nf = self.q_nf
         u_nf = self.fs.u_nf
@@ -786,7 +814,7 @@ class HarmonicDrive():
         print('HD     >calculate_flank_cs()')
         flank, normal = self.fs.calculate_flank_normal(num_of_discretization=50)  
     
-        kinematics =  self.kincematics(num_of_discretization=1000, phi_wg_lim = np.pi/2)
+        kinematics =  self.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi/2)
         (r_z, e_2_1, e_2_2) = kinematics[:3]
         
         r_flank = np.zeros((len(flank), len(r_z), 2))
@@ -825,7 +853,7 @@ class HarmonicDrive():
         flank = MIRROR(flank, axis = 'y')
         normal = MIRROR(normal, axis = 'y')
             
-        kinematics =  self.kincematics(num_of_discretization=1000, phi_wg_lim = np.pi/2)
+        kinematics =  self.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi/2)
         (_3_r_z, _3_e_2_1, _3_e_2_2) = kinematics[3:6]
     
         r_flank = np.zeros((len(flank), len(_3_r_z), 2))

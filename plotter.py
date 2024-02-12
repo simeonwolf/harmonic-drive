@@ -103,11 +103,16 @@ def update_checkboxes_wg(current_var):
 
 def update_plot(calculate = True):
     print("update...")
-    #content of entrys to objects    
-    hd.__dict__['i']      = -float(entry_i.get())
-    hd.__dict__['d_br']   = float(entry_d_br.get())
-    hd.__dict__['phi_wg'] = -float(entry_phi_wg.get())*np.pi/180    
+    
+    #wg:
+    if check_var_elliptical.get() == 1:
+        wg.shape = 'elliptical'
+    elif check_var_345polynomial.get() == 1:
+        wg.shape = '345polynomial'
 
+    wg.arc = float(entry_arc.get())*np.pi/180
+    
+    #fs
     fs.__dict__['d_i']    = float(entry_d_i.get())
     fs.__dict__['s_st']   = float(entry_s_st.get())
     fs.__dict__['d']      = float(entry_d.get())
@@ -119,16 +124,12 @@ def update_plot(calculate = True):
     fs.__dict__['r_ff']   = float(entry_r_ff.get())
     fs.__dict__['r_hr']   = float(entry_r_hr.get())
     fs.__dict__['r_fr']   = float(entry_r_fr.get())
-    
-    if check_var_elliptical.get() == 1:
-        wg.shape = 'elliptical'
-    elif check_var_345polynomial.get() == 1:
-        wg.shape = '345polynomial'
-    
-    wg.arc = float(entry_arc.get())*np.pi/180
-    
-    hd.update_parameter()
     fs.update()
+
+    hd.__dict__['i']      = -float(entry_i.get())
+    hd.__dict__['d_br']   = float(entry_d_br.get())
+    hd.phi_wg             = -float(entry_phi_wg.get())*np.pi/180    
+    hd.update()
     
     #update entry values
     update_entrys()
@@ -317,7 +318,7 @@ def plot_view_array_flexspline_tooth():
     
     flank_cs = hd.calculate_flank_cs()       
     
-    kinematics =  hd.kincematics(num_of_discretization=100000, phi_wg_lim = np.pi)
+    kinematics =  hd.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi)
     (r_z, e_2_1, e_2_2) = kinematics[:3]
     
     ax.plot(r_z[:,0], r_z[:,1], '--', lw = 1, c = "r")
@@ -338,7 +339,7 @@ def plot_view_3_array_flexspline_tooth():
     
     flank_ds = hd.calculate_flank_ds()
     
-    kinematics =  hd.kincematics(num_of_discretization=100000, phi_wg_lim = np.pi)
+    kinematics =  hd.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi)
     (_3_r_z, _3_e_2_1, _3_e_2_2) = kinematics[3:6]
     
     ax.plot(_3_r_z[:,0], _3_r_z[:,1], '--', lw = 1, c = "r")
@@ -416,7 +417,7 @@ def initial():
 
 #objects
 fs = Flexspline()
-wg = Wavegenerator(shape = 1)
+wg = Wavegenerator(shape = 2)
 cs = CircularSpline()
 ds = DynamicSpline()
 hd = HarmonicDrive(fs, wg, cs, ds)
@@ -500,6 +501,15 @@ check_var_345polynomial = tk.BooleanVar(root)
 checkbox_345polynomial = ttk.Checkbutton(root, text="345polynomial", variable=check_var_345polynomial,
                                       command=lambda: update_checkboxes_wg(check_var_345polynomial))
 checkbox_345polynomial.pack(padx=10, pady=2)
+
+if wg.shape == 'elliptical':
+    check_var_345polynomial.set(0)
+    check_var_elliptical.set(1)
+    entry_arc.configure(state="readonly")
+elif wg.shape == '345polynomial':
+    check_var_345polynomial.set(1)
+    check_var_elliptical.set(0)
+    entry_arc.configure(state="normal")
 
 # frame_harmonic_drive
 frame_harmonic_drive = ttk.Frame(root)
