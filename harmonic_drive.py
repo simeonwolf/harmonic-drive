@@ -626,7 +626,6 @@ class HarmonicDrive():
             self.__dict__[name] = value
 
     def update(self):
-        print("hd --> update")
         #Number of teeth
         self.fs.z = 2*(-self.i)
         self.cs.z = self.fs.z + 2
