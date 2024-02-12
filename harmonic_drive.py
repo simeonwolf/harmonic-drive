@@ -8,10 +8,6 @@ from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 from matplotlib.collections import PatchCollection
 
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import matplotlib.patches as mpl_patches
-
 from tqdm import tqdm
 
 def ROT(phi):
@@ -105,7 +101,8 @@ class Flexspline():
         self.d      = 81    #Pitch circle diameter
         self.d_h    = 82    #Head circle diameter
 
-        #---tooth parameters---:
+        #---tooth parameters---
+        #TODO tooth module
         self.alpha  = 20*np.pi/180  #Tooth flank angle
         self.c      = 1             #Tooth space ratio
         self.r_fh   = 5             #Head flank radius
@@ -387,7 +384,7 @@ class Wavegenerator():
         if self.shape == '345polynomial':
             l_1 = a * self.arc
                         
-            num_of_discretization = 10000
+            num_of_discretization = 100000
             dt = (np.pi/2-self.arc)/num_of_discretization
             
             l_2 = 0
@@ -442,6 +439,9 @@ class Wavegenerator():
             aequidistant[3*quarter:] = np.flip([np.array([x,-y]) for x,y in aequidistant_quarter], axis = 0)
             
             return aequidistant
+    
+    def length_aequidistant(self, a, b, q):
+        return self.calculate_profil_length(a,b) + 2*np.pi*q
     
     def point_aequidistant(self, q, t):
         '''
@@ -552,7 +552,7 @@ class CircularSpline():
         gear = self.gear()
         gear_polygon = sp.Polygon(gear).buffer(0)
         
-        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/100))
+        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10))
         d_o = (gear[0,0]*2) * 1.1
         outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
         
@@ -577,7 +577,7 @@ class DynamicSpline():
         index: Possibility to add a hole to indicate the orientation'''
         gear = self.gear()
         if index == True:
-            ALPHA = np.linspace(0,2*np.pi,int(len(gear)/100))
+            ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10))
             d_o = (gear[0,0]*2) * 1.05 #outer diameter
             outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
             m = np.dot(ROT(phi), gear[0]) * 1.05
@@ -589,8 +589,38 @@ class DynamicSpline():
         else:
             return sp.Polygon(ROTATE(gear, phi)).buffer(0)
 
+class Bearing():
+    '''
+    represents the Bearing between the Flexspline and Wavegenerator as Circles'''
+    def __init__(self):
+        self.n       = 10 #Number of bearing rollers
+        self.d_br    = 2  #Diameter Wavegenertor bearing Rolling element
+        self.r_br_i  = []
+        
+    def bearing(self):
+        '''
+        deformed bearing
+        ! only works after r_b_i (vectors to bearing roller i) have been set'''
+        ALPHA = np.linspace(0,2*np.pi,50)
+        
+        bearing = np.zeros((int(self.n),50,2))
+        
+        for i in range(int(self.n)):
+            bearing[i] = np.array([ np.array([self.r_br_i[i,0] + self.d_br/2*np.cos(alpha), 
+                                              self.r_br_i[i,1] + self.d_br/2*np.sin(alpha)]) for alpha in ALPHA])
+
+        return bearing
+    
+    def polygons(self, phi = 0):
+        '''
+        displays the bearing rollers as a plygons'''
+        bearing = self.bearing()
+        polygons = [sp.Polygon(xy).buffer(0) for xy in bearing]
+        
+        return polygons
+
 class HarmonicDrive():
-    def __init__(self, flexspline_inst, wavegenerator_inst, circularspline_inst, dynamicspline_inst):
+    def __init__(self, flexspline_inst, wavegenerator_inst, circularspline_inst, dynamicspline_inst, bearing_inst):
         #parameters that trigger a parameter update when changed:
         self.update_parameter = {'i', 'd_br'}
         
@@ -599,13 +629,13 @@ class HarmonicDrive():
         self.wg = wavegenerator_inst
         self.cs = circularspline_inst
         self.ds = dynamicspline_inst
+        self.br = bearing_inst
         
         #parameter
         self.i = -20        #Transmission Ratio (i_wg->ds)
         self.phi_wg = 0     #Drive Angle Wavegenerator
         self.phi_ds = 0     #Output Angle Dynamic Spline
         
-        self.d_br = 2       #Diameter Wavegenertor bearing Rolling element
         self.q_nf = []      #Equidistant distance neutral fiber
                 
     def __setattr__(self, name, value):
@@ -631,7 +661,7 @@ class HarmonicDrive():
         self.cs.z = self.fs.z + 2
         self.ds.z = self.fs.z
         
-        self.q_nf = self.d_br + self.fs.s_st/2
+        self.q_nf = self.br.d_br + self.fs.s_st/2
         
         #calculate a and b according to the kinematic boundary conditions
         self.wg.a = self.fs.u_nf * (-self.i + 1)/-self.i * 1/(2*np.pi) - self.q_nf
@@ -641,8 +671,9 @@ class HarmonicDrive():
         '''
         optimization function for calculating a and b'''
         (a, q_nf, u_nf) = args
-        lenght_neutral_fibre = self.wg.calculate_profil_length(a,b) + 2*np.pi*q_nf
-        return lenght_neutral_fibre - u_nf
+        #length_neutral_fibre = self.wg.calculate_profil_length(a,b) + 2*np.pi*q_nf
+        length_neutral_fibre = self.wg.length_aequidistant(a, b, q_nf)
+        return length_neutral_fibre - u_nf
     
     def neutral_fibre(self, num_of_discretization = 1000):
         '''
@@ -722,10 +753,10 @@ class HarmonicDrive():
         
         return r_z, e_2_1, e_2_2, _3_r_z, _3_e_2_1, _3_e_2_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z
     
-    def calculate_kinematics(self, num_of_discretization = 10000):
+    def calculate_kinematics(self, num_of_discretization = 100000):
         print("calculate kinematics...")
 
-        (r_z, e_2_1, e_2_2, _3_r_z, _3_e_2_1, _3_e_2_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z) =  self.kincematics(num_of_discretization, phi_wg_lim = 2*np.pi)
+        (r_z, e_2_1, e_2_2, _3_r_z, _3_e_2_1, _3_e_2_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z) =  self.kincematics(num_of_discretization = num_of_discretization, phi_wg_lim = 2*np.pi)
 
         self.r_z = r_z
         self.e_2_1 = e_2_1
@@ -747,7 +778,6 @@ class HarmonicDrive():
         l_nf = self.l_nf
         l_nf_t = self.l_nf_t
         a = self.wg.a
-        b = self.wg.b
         q_nf = self.q_nf
         phi_wg = self.phi_wg
         r_z = self.r_z
@@ -813,7 +843,7 @@ class HarmonicDrive():
         print('HD     >calculate_flank_cs()')
         flank, normal = self.fs.calculate_flank_normal(num_of_discretization=50)  
     
-        kinematics =  self.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi/2)
+        kinematics =  self.kincematics(num_of_discretization=1000, phi_wg_lim = np.pi/2)
         (r_z, e_2_1, e_2_2) = kinematics[:3]
         
         r_flank = np.zeros((len(flank), len(r_z), 2))
@@ -852,7 +882,7 @@ class HarmonicDrive():
         flank = MIRROR(flank, axis = 'y')
         normal = MIRROR(normal, axis = 'y')
             
-        kinematics =  self.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi/2)
+        kinematics =  self.kincematics(num_of_discretization=1000, phi_wg_lim = np.pi/2)
         (_3_r_z, _3_e_2_1, _3_e_2_2) = kinematics[3:6]
     
         r_flank = np.zeros((len(flank), len(_3_r_z), 2))
@@ -888,3 +918,77 @@ class HarmonicDrive():
         flank_ds = np.array(flank_ds)
         self.ds.flank = flank_ds
         return flank_ds
+    
+    def calculate_bearing_kinematics(self):
+        '''
+        TODO'''
+        phi_wg_lim = np.pi
+        num_of_discretization = 100000
+        u_br = self.wg.length_aequidistant(self.wg.a, self.wg.b, self.br.d_br/2)
+        
+        #lookup-table
+        bearing_fibre = self.wg.aequidistant(self.br.d_br/2)
+        gradient = np.gradient(bearing_fibre)[0]
+        
+        l_br = np.cumsum( np.array([np.linalg.norm(xy) for xy in gradient]) ) #length of neutral fibre
+        l_br_t = np.linspace(0,2*np.pi,len(bearing_fibre)) #t to length of neutral fibre
+        
+        #euler forward
+        d_phi_wg = phi_wg_lim/num_of_discretization
+        
+        phi_wg_i = 0
+        s_i = 0
+        r_br = np.zeros((num_of_discretization,2))
+        r_br[0] = np.array([self.wg.a + self.br.d_br/2,0])
+        
+        for idx in range(num_of_discretization-1):
+            while s_i >= u_br:
+                s_i = s_i - u_br
+            
+            t = np.interp(s_i,l_br,l_br_t)
+            
+            tangent = self.wg.tangent_aequidistant(self.br.d_br/2, t)
+            
+            v_r = tangent * (self.wg.a + self.br.d_br)/2       
+            v_r = np.dot(ROT(phi_wg_i), v_r)
+            
+            v_t = np.array([r_br[idx,1], -r_br[idx,0]])
+            
+            v_abs = v_r + v_t
+            
+            phi_wg_i = phi_wg_i - d_phi_wg
+            s_i = s_i + (self.wg.a + self.br.d_br)/2 * d_phi_wg
+            
+            r_br[idx+1] = r_br[idx] + v_abs * d_phi_wg
+    
+        self.br.l_br = l_br
+        self.br.l_br_t = l_br_t
+        self.br.u_br = u_br
+        self.br.r_br = r_br
+    
+    def calculate_bearing(self):
+        phi_wg = self.phi_wg
+        u_br = self.br.u_br
+        l_br = self.br.l_br
+        l_br_t = self.br.l_br_t
+        
+        r_br_i = np.zeros((int(self.br.n),2))        
+
+        #Bearing roller 1:
+        s_0 = -phi_wg*(self.wg.a + self.br.d_br)/2 #distance
+        
+        for i_br in range(0,int(self.br.n/2)):
+            s_i = u_br/self.br.n * i_br + s_0
+                        
+            if s_i > u_br/2:
+                s_i = s_i - u_br/2
+                s_0 = s_0 - u_br/2
+                phi_wg = phi_wg + np.pi
+                            
+            t_i = np.interp(s_i, l_br, l_br_t) 
+            p_i = self.wg.point_aequidistant(self.br.d_br/2, t_i)
+            
+            r_br_i[i_br] = np.dot(ROT(phi_wg), p_i)
+            r_br_i[i_br + int(self.br.n/2)] = -r_br_i[i_br]
+            
+        self.br.r_br_i = r_br_i

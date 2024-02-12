@@ -31,16 +31,6 @@ def plot_settings(ax):
     
     ax.set_axis_off()
     
-# def plot_polygon(ax, poly, **kwargs):
-#     path = Path.make_compound_path(
-#         Path(np.asarray(poly.exterior.coords)[:, :2]),
-#         *[Path(np.asarray(ring.coords)[:, :2]) for ring in poly.interiors])
-
-#     patch = PathPatch(path, zorder = 2, **kwargs)
-#     collection = PatchCollection([patch], **kwargs)
-#     ax.add_collection(collection, autolim=True)
-    
-#     return collection
 
 def plot_circle(ax, r, center = [0,0], **kwargs):
     ALPHA = np.linspace(0,2*np.pi,1000)
@@ -127,7 +117,10 @@ def update_plot(calculate = True):
     fs.update()
 
     hd.__dict__['i']      = -float(entry_i.get())
-    hd.__dict__['d_br']   = float(entry_d_br.get())
+    
+    br.d_br               = float(entry_d_br.get())
+    br.n                  = float(entry_n.get())
+    
     hd.phi_wg             = -float(entry_phi_wg.get())*np.pi/180    
     hd.update()
     
@@ -222,6 +215,7 @@ def plot_view_harmonic_drive(calculate = True):
         hd.calculate_kinematics()
         hd.calculate_flank_cs()
         hd.calculate_flank_ds()
+        hd.calculate_bearing_kinematics()
     
     phi_wg = hd.phi_wg
 
@@ -236,6 +230,7 @@ def plot_view_harmonic_drive(calculate = True):
 def update_rotation(phi_wg, plot_circular_spline = True):
     
     hd.calculate_CS2_i()
+    hd.calculate_bearing()
 
     #---Wavegenerator---
     color = 'deepskyblue'
@@ -250,6 +245,16 @@ def update_rotation(phi_wg, plot_circular_spline = True):
                             fc = (color, 0.8))
     except:
         print('Plot Error Wavegenerator')
+
+    #---Bearing---
+    color = 'grey'
+    try:
+        [plot_polygon(ax, polygon,
+                        ec = "black",
+                        lw = 1,
+                        fc = (color, 0.8)) for polygon in br.polygons()]
+    except:
+        print('Plot Error Bearing')
 
     #---Flexspline---
     color = 'springgreen'
@@ -361,7 +366,7 @@ def update_animation(frame):
         if isinstance(artist, mpl_patches.FancyArrow) or isinstance(artist, plt.Line2D) or isinstance(artist, PatchCollection):
             artist.remove()
     
-    phi_wg = -frame*np.pi/180
+    phi_wg = -frame/2*np.pi/180
     hd.phi_wg = phi_wg
     update_rotation(phi_wg)
     entry_phi_wg.delete(0, "end")
@@ -377,7 +382,7 @@ def start_stop_animation():
         if not animation_instance:
             
             animation_instance = animation.FuncAnimation(fig=fig, func=update_animation,
-                                                              frames = 360, interval=5, repeat=True)#, blit=True)
+                                                              frames = 360*2, interval=5, repeat=True)#, blit=True)
             root.update()
             canvas.draw()
         
@@ -413,14 +418,16 @@ def initial():
     fs.r_hr = 1
     fs.r_fr = 1
     
-    hd.d_br = 0.3
+    br.d_br = 5
+    br.n = 20
 
 #objects
 fs = Flexspline()
 wg = Wavegenerator(shape = 2)
 cs = CircularSpline()
 ds = DynamicSpline()
-hd = HarmonicDrive(fs, wg, cs, ds)
+br = Bearing()
+hd = HarmonicDrive(fs, wg, cs, ds, br)
 
 #change inital paramter
 initial()
@@ -523,9 +530,16 @@ entry_z_cs = create_entry_frame(frame_harmonic_drive, "Number of teeth Circular 
 entry_z_cs.configure(state="readonly")
 entry_z_ds = create_entry_frame(frame_harmonic_drive, "Number of teeth Dynamic Spline | z_ds", ds.z, 4)
 entry_z_ds.configure(state="readonly")
-entry_d_br = create_entry_frame(frame_harmonic_drive, "Diameter Wavegenertor Bearing Rolling element | d_br", hd.d_br, 5)
-entry_q_nf = create_entry_frame(frame_harmonic_drive, "Equidistant Distance Neutral Fiber | q_nf", hd.q_nf, 6)
+entry_q_nf = create_entry_frame(frame_harmonic_drive, "Equidistant Distance Neutral Fiber | q_nf", hd.q_nf, 5)
 entry_q_nf.configure(state="readonly")
+
+# frame_bearing
+frame_bearing = ttk.Frame(root)
+frame_bearing.pack(side=tk.TOP, fill='x', padx=10, pady=2)
+ttk.Label(frame_bearing, text="Bearing Parameter").grid(row=0, column=0, columnspan=2)
+
+entry_d_br = create_entry_frame(frame_bearing, "Diameter Wavegenertor Bearing Rolling element | d_br", br.d_br, 1)
+entry_n    = create_entry_frame(frame_bearing, "Number of bearing rollers | n", br.n, 2)
 
 #CheckBoxes
 check_var_tooth = tk.BooleanVar(root)
