@@ -2,6 +2,9 @@
 
 Generates the profile of the wave generator as well as the toothings of the circular and dynamic spline for a given flexspline with toothing.
 The code can be used to create an animation of the harmonic drive (e.g. see animation_result.mp4)
+
+Screenshot of ploter.py:
+
 ![Screenshot](screenshot.png)
 ### Dependencies
 
