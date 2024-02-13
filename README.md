@@ -6,6 +6,9 @@ The code can be used to create an animation of the harmonic drive (e.g. see anim
 Screenshot of ploter.py:
 
 ![Screenshot](screenshot.png)
+
+To design the gearbox in Autodesk Inventor, the tooth flanks can be transferred to an Inventor sketch via InventorAPI.py
+
 ### Dependencies
 
 Used packages:
