@@ -13,3 +13,7 @@ numpy, scipy, shapely, matplotlib, tqdm
 
 Simeon Wolf
 [![Linkedin](https://i.stack.imgur.com/gVE0j.png) LinkedIn](https://www.linkedin.com/in/simeon-w-8a1445228/)
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE.md file for details
