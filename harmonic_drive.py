@@ -34,6 +34,15 @@ def MIRROR(vec_arr, axis = 'x'):
     if axis == 'y':
         return np.flip(np.array([-1,1])*vec_arr, axis = 0)
 
+def TRANSFORM(vec_arr, CS, r_0 = np.array([0,0])):
+    '''
+    transforms a curve in the coordinate system CS with origin r_0'''
+    return r_0 + np.einsum('ij, kj -> ki', CS, vec_arr)
+
+def CIRCLE(r, num_of_discretization = 100, r_0 = np.array([0,0])):
+    ALPHA = np.linspace(0, 2*np.pi, num_of_discretization, endpoint=False)
+    return r_0 + r * np.array([np.cos(ALPHA), np.sin(ALPHA)]).T
+
 def length_vec_array(vec_arr):
     '''
     length of a curve (approximation)
@@ -273,10 +282,9 @@ class Flexspline():
         displays the gear contour as a plygon (e.g. to display the gear wheel in color)'''
         gear = self.gear()
         gear_polygon = sp.Polygon(gear).buffer(0)
-        
-        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10), endpoint=False)
-        inner_circle_polygon = sp.Polygon([[self.d_i/2*np.cos(alpha), self.d_i/2*np.sin(alpha)] for alpha in ALPHA])
-        
+
+        inner_circle_polygon = sp.Polygon(CIRCLE(self.d_i/2))
+                
         return gear_polygon.difference(inner_circle_polygon)
     
     def gear_deformed(self):
@@ -286,7 +294,7 @@ class Flexspline():
         have been set'''
         gear_deformed = self.r_z_i[0] + np.array([np.dot(self.CS_2_i[0], xy) for xy in self.tooth])
         for i in range(1,int(self.z)):
-            tooth_i = np.array([self.r_z_i[i] + np.dot(self.CS_2_i[i], xy) for xy in self.tooth])
+            tooth_i = TRANSFORM(vec_arr = self.tooth, CS = self.CS_2_i[i], r_0 = self.r_z_i[i])
             gear_deformed = np.append(gear_deformed, tooth_i, axis = 0)
         
         return gear_deformed
@@ -352,8 +360,8 @@ class Wavegenerator():
         
         if self.shape == 'elliptical':
             t = np.linspace(0,2*np.pi,num_of_discretization, endpoint=False)
-            return np.array([np.array([self.a * np.cos(t),
-                                       self.b * np.sin(t)]) for t in t])
+            return np.array([[self.a * np.cos(t),
+                              self.b * np.sin(t)] for t in t])
             
         if self.shape == '345polynomial':
             #composed of 345 polynomial and circular arc
@@ -523,9 +531,8 @@ class Wavegenerator():
         '''displays rotated profil of the Wavegenerator (angle phi)
         index: Possibility to add a hole to indicate the orientation'''
         if index == True:
-            ALPHA = np.linspace(0,2*np.pi,100, endpoint=False)
-            m = np.dot(ROT(phi), self.profil[0]) * 0.95
-            index_circle_polygon = sp.Polygon([[m[0] + np.cos(alpha), m[1] + np.sin(alpha)] for alpha in ALPHA])
+            m = np.dot(ROT(phi), self.profil[0]) * 0.95            
+            index_circle_polygon = sp.Polygon(CIRCLE(1, r_0 = m))
             return sp.Polygon(ROTATE(self.profil, phi)).buffer(0).difference(index_circle_polygon)
         else:
             return sp.Polygon(ROTATE(self.profil, phi)).buffer(0)
@@ -543,7 +550,6 @@ class CircularSpline():
         contour of the gear'''
         flank = np.array([xy for xy in self.flank if np.arctan(xy[1]/xy[0]) < np.pi/self.z*2 ])
         return gear_from_flank(flank, int(self.z))
-        #return gear_from_flank(self.flank, int(self.z))
         
     def polygon(self):
         '''
@@ -551,9 +557,8 @@ class CircularSpline():
         gear = self.gear()
         gear_polygon = sp.Polygon(gear).buffer(0)
         
-        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10), endpoint=False)
-        d_o = (gear[0,0]*2) * 1.1
-        outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
+        r_o = gear[0,0] * 1.1
+        outer_circle_polygon = sp.Polygon(CIRCLE(r_o))
         
         return outer_circle_polygon.difference(gear_polygon)
     
@@ -576,14 +581,14 @@ class DynamicSpline():
         index: Possibility to add a hole to indicate the orientation'''
         gear = self.gear()
         if index == True:
-            ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10), endpoint=False)
-            d_o = (gear[0,0]*2) * 1.05 #outer diameter
-            outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
+            r_o = gear[0,0] * 1.05 #outer diameter
+            outer_circle_polygon = sp.Polygon(CIRCLE(r_o))
+            
             m = np.dot(ROT(phi), gear[0]) * 1.05
-            index_circle_polygon = sp.Polygon([[m[0] + np.cos(alpha), m[1] + np.sin(alpha)] for alpha in ALPHA])
-        
+            index_circle_polygon = sp.Polygon(CIRCLE(1, r_0 = m))
+            
             gear_polygon = sp.Polygon(ROTATE(gear, phi)).buffer(0)
-        
+            
             return outer_circle_polygon.difference(gear_polygon).difference(index_circle_polygon)
         else:
             return sp.Polygon(ROTATE(gear, phi)).buffer(0)
@@ -600,15 +605,7 @@ class Bearing():
         '''
         deformed bearing
         ! only works after r_b_i (vectors to bearing roller i) have been set'''
-        ALPHA = np.linspace(0,2*np.pi,50, endpoint=False)
-        
-        bearing = np.zeros((int(self.n),50,2))
-        
-        for i in range(int(self.n)):
-            bearing[i] = np.array([ np.array([self.r_br_i[i,0] + self.d_br/2*np.cos(alpha), 
-                                              self.r_br_i[i,1] + self.d_br/2*np.sin(alpha)]) for alpha in ALPHA])
-
-        return bearing
+        return np.array([CIRCLE(self.d_br/2, num_of_discretization=100, r_0 = r_br) for r_br in self.r_br_i])
     
     def polygons(self, phi = 0):
         '''
@@ -670,7 +667,6 @@ class HarmonicDrive():
         '''
         optimization function for calculating a and b'''
         (a, q_nf, u_nf) = args
-        #length_neutral_fibre = self.wg.calculate_profil_length(a,b) + 2*np.pi*q_nf
         length_neutral_fibre = self.wg.length_aequidistant(a, b, q_nf)
         return length_neutral_fibre - u_nf
     
@@ -680,19 +676,16 @@ class HarmonicDrive():
         which corresponds to the aequidistant to the profile of the wave generator'''
         return self.wg.aequidistant(self.q_nf, num_of_discretization = num_of_discretization)
     
-    def neutral_fibre_rotated(self, phi):
+    def neutral_fibre_rotated(self):
         '''
         returns the rotated neutral fibre (angle phi)'''
-        neutral_fibre = self.neutral_fibre()
-        return ROTATE(neutral_fibre, phi)
+        return ROTATE(self.neutral_fibre(), self.phi_wg)
     
-    def inside_fibre_rotated(self, phi, num_of_discretization = 1000):
+    def inside_fibre_rotated(self, num_of_discretization = 1000):
         '''
         returns the rotated inside fibre of the Flexspline (angle phi)'''
-        q_nf = self.q_nf
-        s_st = self.fs.s_st
-        inside_fibre = self.wg.aequidistant(q_nf-s_st/2, num_of_discretization = num_of_discretization)
-        return ROTATE(inside_fibre, phi)
+        inside_fibre = self.wg.aequidistant(self.q_nf-self.fs.s_st/2, num_of_discretization = num_of_discretization)
+        return ROTATE(inside_fibre, self.phi_wg)
     
     def kincematics(self, num_of_discretization = 100000, phi_wg_lim  = 2*np.pi):
         '''
@@ -742,6 +735,7 @@ class HarmonicDrive():
             e_2_1[idx] = -1/np.linalg.norm(v_r)*v_r
             e_2_2[idx] = np.array([-e_2_1[idx,1],e_2_1[idx,0]])
         
+        #TODO
         CS_2 = [np.vstack((xy_1, xy_2)).T for xy_1, xy_2 in zip(e_2_1, e_2_2)]
         
         phi_wg_r_z = np.linspace(0,phi_wg_lim,num_of_discretization, endpoint=False)
@@ -762,8 +756,6 @@ class HarmonicDrive():
         self.r_z = r_z
         self.CS_2 = np.array(CS_2)
 
-        #kinematics_low_res = self.kincematics(num_of_discretization = 100, phi_wg_lim = np.pi)
-
         self._3_r_z = _3_r_z
         self._3_CS_2 = np.array(_3_CS_2)
 
@@ -780,8 +772,7 @@ class HarmonicDrive():
         q_nf = self.q_nf
         
         phi_wg = self.phi_wg
-        self.phi_ds = phi_wg/self.i
-        
+       
         r_z_i = np.zeros((int(z_fs),2)) #vector to tooth i
         CS_2_i = np.zeros((int(z_fs),2,2)) #x_2, y_2 coordinate System of tooth i
 
@@ -814,7 +805,7 @@ class HarmonicDrive():
         self.fs.r_z_i = r_z_i
         self.fs.CS_2_i = CS_2_i
         
-        self.fs.inside_fibre = self.inside_fibre_rotated(phi_wg, num_of_discretization = 100)
+        self.fs.inside_fibre = self.inside_fibre_rotated(num_of_discretization = 100)
         
     def calculate_flank_cs(self):
         print('HD     >calculate_flank_cs()')

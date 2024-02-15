@@ -31,6 +31,7 @@ def plot_settings(ax):
     
     ax.set_axis_off()
     
+#TODO wegmachen plot_cirle --> plot_va, CIRCLE    
 def plot_circle(ax, r, center = [0,0], **kwargs):
     ALPHA = np.linspace(0,2*np.pi,1000)
     ax.plot(center[0] + r*np.cos(ALPHA), center[1] + r*np.sin(ALPHA), **kwargs)
@@ -191,6 +192,7 @@ def plot_view_tooth():
 
     ax.plot([fs.d_i/2-fs.d_i/100,fs.d_h/2+fs.d_h/100],[0,0], ls = "dashdot", lw = 1, c = "k")
 
+    #TODO
     plot_settings(ax)
     
     ax.set_xlim(xlim)
@@ -228,7 +230,6 @@ def plot_view_harmonic_drive(calculate = True):
         except:
             print('Plot Error Circular Spline')
         
-    
     update_rotation()
             
     R = (wg.a + hd.q_nf + fs.s_st/2 + fs.h_t)*1.11
