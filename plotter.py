@@ -31,7 +31,6 @@ def plot_settings(ax):
     
     ax.set_axis_off()
     
-
 def plot_circle(ax, r, center = [0,0], **kwargs):
     ALPHA = np.linspace(0,2*np.pi,1000)
     ax.plot(center[0] + r*np.cos(ALPHA), center[1] + r*np.sin(ALPHA), **kwargs)
@@ -211,15 +210,26 @@ def plot_view_fs_gear():
     plot_settings(ax)
 
 def plot_view_harmonic_drive(calculate = True):
+    global patch_cs
     if calculate:
         hd.calculate_kinematics()
         hd.calculate_flank_cs()
         hd.calculate_flank_ds()
         hd.calculate_bearing_kinematics()
+        
+        #---Circular Spline---
+        color = 'darkgrey'
+        plot_coordinate_system(ax, length=wg.b/2, phi=0, facecolor = color) #CS0
+        try:
+            patch_cs = plot_polygon(ax, cs.polygon(),
+                                      ec = "black",
+                                      lw = 1,
+                                      fc = (color, 0.8))
+        except:
+            print('Plot Error Circular Spline')
+        
     
-    phi_wg = hd.phi_wg
-
-    update_rotation(phi_wg)
+    update_rotation()
             
     R = (wg.a + hd.q_nf + fs.s_st/2 + fs.h_t)*1.11
     plot_settings(ax) 
@@ -227,19 +237,19 @@ def plot_view_harmonic_drive(calculate = True):
     ax.set_ylim([-R,R])
     ax.set_aspect('equal', 'box')
 
-def update_rotation(phi_wg, plot_circular_spline = True):
+def update_rotation():
     
-    hd.calculate_CS2_i()
+    hd.calculate_CS_2_i()
     hd.calculate_bearing()
 
     #---Wavegenerator---
     color = 'deepskyblue'
-    plot_coordinate_system(ax, length=wg.b/2, phi=phi_wg, facecolor = color) #CS1
+    plot_coordinate_system(ax, length=wg.b/2, phi=hd.phi_wg, facecolor = color) #CS1
     #profil_wg_phi_wg = wg.profil_rotated(phi_wg)
     #ax.plot(profil_wg_phi_wg[:,0], profil_wg_wg[:,1])
     #ax.plot([0,np.cos(phi_wg)*a_el],[0,np.sin(phi_wg)*a_el], ls = 'dashed',lw = 1, c = "darkviolet" , alpha = 0.5)
     try:
-        plot_polygon(ax, wg.polygon(phi=phi_wg),
+        plot_polygon(ax, wg.polygon(phi=hd.phi_wg),
                             ec = "black",
                             lw = 1,
                             fc = (color, 0.8))
@@ -269,43 +279,23 @@ def update_rotation(phi_wg, plot_circular_spline = True):
         print('Plot Error Flexspline')
 
     #---Flexspline first tooth---
-    r_z = hd.r_z
-    r_z_i = hd.r_z_i
-    phi_wg_r_z = hd.phi_wg_r_z
-    e_2_1 = hd.e_2_1
-    e_2_2 = hd.e_2_2
-    
-    e_2_1_phi_wg = np.array([np.interp(-phi_wg,phi_wg_r_z,e_2_1[:,0]),
-                             np.interp(-phi_wg,phi_wg_r_z,e_2_1[:,1])])
-    
-    e_2_2_phi_wg = np.array([np.interp(-phi_wg,phi_wg_r_z,e_2_2[:,0]),
-                             np.interp(-phi_wg,phi_wg_r_z,e_2_2[:,1])])
-    
+
     #trace r_z:
+    r_z = hd.r_z
     ax.plot(r_z[:,0], r_z[:,1], '--', lw = 1, c = "r")
-    ax.arrow(0,0,r_z_i[0,0],r_z_i[0,1], color = 'red', lw=1, head_length=2, head_width=0.8, length_includes_head=True)
-    
-    cs_2_phi_wg = np.array([[e_2_1_phi_wg[0], e_2_2_phi_wg[0]],
-                            [e_2_1_phi_wg[1], e_2_2_phi_wg[1]]])
-    
-    tooth_phi_wg = r_z_i[0] + np.array([np.dot(cs_2_phi_wg, xy) for xy in fs.tooth])
+    ax.arrow(0,0,fs.r_z_i[0,0],fs.r_z_i[0,1], color = 'red', lw=1, head_length=2, head_width=0.8, length_includes_head=True)
+        
+    tooth_phi_wg = fs.r_z_i[0] + np.array([np.dot(fs.CS_2_i[0], xy) for xy in fs.tooth])
     ax.plot(tooth_phi_wg[:,0], tooth_phi_wg[:,1], lw = 2, c = "darkblue")
     
     #coordinate system:
-    ax.arrow(r_z_i[0,0],r_z_i[0,1],e_2_1_phi_wg[0]*4,e_2_1_phi_wg[1]*4, facecolor = color, lw=0.5, head_length=1, head_width=0.4, length_includes_head=True, edgecolor = 'black')
-    ax.arrow(r_z_i[0,0],r_z_i[0,1],e_2_2_phi_wg[0]*4,e_2_2_phi_wg[1]*4, facecolor = color, lw=0.5, head_length=1, head_width=0.4, length_includes_head=True, edgecolor = 'black')
+    [e_2_1_phi_wg, e_2_2_phi_wg] = np.hsplit(fs.CS_2_i[0], 2)
+    e_2_1_phi_wg = np.squeeze(e_2_1_phi_wg)
+    e_2_2_phi_wg = np.squeeze(e_2_2_phi_wg)
     
-    #---Circular Spline---
-    color = 'darkgrey'
-    plot_coordinate_system(ax, length=wg.b/2, phi=0, facecolor = color) #CS0
-    try:
-        plot_polygon(ax, cs.polygon(),
-                          ec = "black",
-                          lw = 1,
-                          fc = (color, 0.8))
-    except:
-        print('Plot Error Circular Spline')
-            
+    ax.arrow(fs.r_z_i[0,0], fs.r_z_i[0,1], e_2_1_phi_wg[0]*4, e_2_1_phi_wg[1]*4, facecolor = color, lw=0.5, head_length=1, head_width=0.4, length_includes_head=True, edgecolor = 'black')
+    ax.arrow(fs.r_z_i[0,0], fs.r_z_i[0,1], e_2_2_phi_wg[0]*4, e_2_2_phi_wg[1]*4, facecolor = color, lw=0.5, head_length=1, head_width=0.4, length_includes_head=True, edgecolor = 'black')
+    
     #---Dynamic Spline---
     color = 'fuchsia'
     plot_coordinate_system(ax, length=wg.b/2, phi=hd.phi_ds, facecolor = color) #CS3
@@ -321,17 +311,13 @@ def update_rotation(phi_wg, plot_circular_spline = True):
 def plot_view_array_flexspline_tooth():
     tooth = fs.tooth
     
+    hd.calculate_kinematics()
     flank_cs = hd.calculate_flank_cs()       
+        
+    ax.plot(hd.r_z[:,0], hd.r_z[:,1], '--', lw = 1, c = "r")
     
-    kinematics =  hd.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi)
-    (r_z, e_2_1, e_2_2) = kinematics[:3]
-    
-    ax.plot(r_z[:,0], r_z[:,1], '--', lw = 1, c = "r")
-    
-    for i in range(0,len(r_z), int(len(r_z)/100)):
-        CS_2_i = np.array([[e_2_1[i,0],e_2_2[i,0]],
-                           [e_2_1[i,1],e_2_2[i,1]]])
-        tooth_i = np.array([ r_z[i] + np.dot(CS_2_i, xy) for xy in tooth])
+    for i in range(0,len(hd.r_z), int(len(hd.r_z)/100)):
+        tooth_i = np.array([hd.r_z[i] + np.dot(hd.CS_2[i], xy) for xy in tooth])
         ax.plot(tooth_i[:,0], tooth_i[:,1], lw = 1, c = "darkblue")
     
     ax.plot(flank_cs[:,0], flank_cs[:,1], '+r')
@@ -342,17 +328,13 @@ def plot_view_3_array_flexspline_tooth():
     fs.calculate_tooth()
     tooth = fs.tooth
     
+    hd.calculate_kinematics()
     flank_ds = hd.calculate_flank_ds()
     
-    kinematics =  hd.kincematics(num_of_discretization=10000, phi_wg_lim = np.pi)
-    (_3_r_z, _3_e_2_1, _3_e_2_2) = kinematics[3:6]
+    ax.plot(hd._3_r_z[:,0], hd._3_r_z[:,1], '--', lw = 1, c = "r")
     
-    ax.plot(_3_r_z[:,0], _3_r_z[:,1], '--', lw = 1, c = "r")
-    
-    for i in range(0,len(_3_r_z), int(len(_3_r_z)/100)):
-        _3_CS_2_i = np.array([[_3_e_2_1[i,0],_3_e_2_2[i,0]],
-                              [_3_e_2_1[i,1],_3_e_2_2[i,1]]])
-        _3_tooth_i = np.array([ _3_r_z[i] + np.dot(_3_CS_2_i, xy) for xy in tooth])
+    for i in range(0,len(hd._3_r_z), int(len(hd._3_r_z)/100)):
+        _3_tooth_i = np.array([hd._3_r_z[i] + np.dot(hd._3_CS_2[i], xy) for xy in tooth])
         ax.plot(_3_tooth_i[:,0], _3_tooth_i[:,1], lw = 1, c = "darkblue")
         
     ax.plot(flank_ds[:,0], flank_ds[:,1], '+r')
@@ -360,15 +342,15 @@ def plot_view_3_array_flexspline_tooth():
     plot_settings(ax)
 
 def update_animation(frame):
-    print("frame", frame)
 
     for artist in ax.get_children():
-        if isinstance(artist, mpl_patches.FancyArrow) or isinstance(artist, plt.Line2D) or isinstance(artist, PatchCollection):
-            artist.remove()
+        if not patch_cs == artist:
+            if isinstance(artist, mpl_patches.FancyArrow) or isinstance(artist, plt.Line2D) or isinstance(artist, PatchCollection):
+                artist.remove()
     
     phi_wg = -frame/2*np.pi/180
     hd.phi_wg = phi_wg
-    update_rotation(phi_wg)
+    update_rotation()
     entry_phi_wg.delete(0, "end")
     entry_phi_wg.insert(0, int(-phi_wg*180/np.pi))
 
@@ -441,6 +423,8 @@ root.title("Harmonic Drive")
 fig = plt.Figure(figsize=(10, 10), dpi=100)
 ax = fig.add_subplot()
 
+patch_cs = []
+
 #animation
 animation_running = False
 animation_instance = []
@@ -462,7 +446,7 @@ toolbar.pack()
 # Entrys
 # frame_flexspline
 frame_flexspline = ttk.Frame(root)
-frame_flexspline.pack(side=tk.TOP, fill='x', padx=10, pady=2)
+frame_flexspline.pack(side=tk.TOP, fill='x', padx=1, pady=1)
 ttk.Label(frame_flexspline, text="Flexspline Parameter").grid(row=0, column=0, columnspan=2)
 
 entry_d_i = create_entry_frame(frame_flexspline, "Inner Diameter | d_i", fs.d_i, 1)
@@ -478,7 +462,7 @@ entry_z.configure(state="readonly")
 
 # frame_tooth
 frame_tooth = ttk.Frame(root)
-frame_tooth.pack(side=tk.TOP, fill='x', padx=10, pady=2)
+frame_tooth.pack(side=tk.TOP, fill='x', padx=1, pady=1)
 ttk.Label(frame_tooth, text="Flexspline Tooth Parameter").grid(row=0, column=0, columnspan=2)
 
 entry_alpha = create_entry_frame(frame_tooth, "Tooth Flank Angle | alpha", fs.alpha * 180/np.pi, 1)
@@ -490,7 +474,7 @@ entry_r_fr = create_entry_frame(frame_tooth, "Foot Rounding | r_fr", fs.r_fr, 6)
 
 # frame_wavegenerator
 frame_wavegenerator = ttk.Frame(root)
-frame_wavegenerator.pack(side=tk.TOP, fill='x', padx=10, pady=2)
+frame_wavegenerator.pack(side=tk.TOP, fill='x', padx=1, pady=1)
 ttk.Label(frame_wavegenerator, text="Wavegenerator Parameter").grid(row=0, column=0, columnspan=2)
 
 entry_a = create_entry_frame(frame_wavegenerator, "Large Semi-Axis | a", wg.a, 1)
@@ -502,12 +486,12 @@ entry_arc = create_entry_frame(frame_wavegenerator, "Arc | gamma", wg.arc * 180/
 check_var_elliptical = tk.BooleanVar(root)
 checkbox_elliptical = ttk.Checkbutton(root, text="Elliptical", variable=check_var_elliptical,
                                       command=lambda: update_checkboxes_wg(check_var_elliptical))
-checkbox_elliptical.pack(padx=10, pady=2)
+checkbox_elliptical.pack(padx=1, pady=1)
 
 check_var_345polynomial = tk.BooleanVar(root)
 checkbox_345polynomial = ttk.Checkbutton(root, text="345polynomial", variable=check_var_345polynomial,
                                       command=lambda: update_checkboxes_wg(check_var_345polynomial))
-checkbox_345polynomial.pack(padx=10, pady=2)
+checkbox_345polynomial.pack(padx=1, pady=1)
 
 if wg.shape == 'elliptical':
     check_var_345polynomial.set(0)
@@ -520,7 +504,7 @@ elif wg.shape == '345polynomial':
 
 # frame_harmonic_drive
 frame_harmonic_drive = ttk.Frame(root)
-frame_harmonic_drive.pack(side=tk.TOP, fill='x', padx=10, pady=2)
+frame_harmonic_drive.pack(side=tk.TOP, fill='x', padx=1, pady=1)
 ttk.Label(frame_harmonic_drive, text="Harmonic Drive Parameter").grid(row=0, column=0, columnspan=2)
 
 entry_i = create_entry_frame(frame_harmonic_drive, "Transmission Ratio (|i_wg->ds|) | i", -hd.i, 1)
@@ -535,7 +519,7 @@ entry_q_nf.configure(state="readonly")
 
 # frame_bearing
 frame_bearing = ttk.Frame(root)
-frame_bearing.pack(side=tk.TOP, fill='x', padx=10, pady=2)
+frame_bearing.pack(side=tk.TOP, fill='x', padx=1, pady=1)
 ttk.Label(frame_bearing, text="Bearing Parameter").grid(row=0, column=0, columnspan=2)
 
 entry_d_br = create_entry_frame(frame_bearing, "Diameter Wavegenertor Bearing Rolling element | d_br", br.d_br, 1)
@@ -545,21 +529,21 @@ entry_n    = create_entry_frame(frame_bearing, "Number of bearing rollers | n", 
 check_var_tooth = tk.BooleanVar(root)
 checkbox_tooth = ttk.Checkbutton(root, text="View Flexspline Tooth", variable=check_var_tooth,
                                       command=lambda: update_checkboxes(check_var_tooth))
-checkbox_tooth.pack(padx=10, pady=2)
+checkbox_tooth.pack(padx=1, pady=1)
 
 check_var_gear = tk.BooleanVar(root)
 checkbox_gear = ttk.Checkbutton(root, text="View Flexspline", variable=check_var_gear,
                                      command=lambda: update_checkboxes(check_var_gear))
-checkbox_gear.pack(padx=10, pady=2)
+checkbox_gear.pack(padx=1, pady=1)
 
 check_var_harmonic_drive = tk.BooleanVar(root)
 checkbox_harmonic_drive = ttk.Checkbutton(root, text="View Harmonic Drive", variable=check_var_harmonic_drive,
                                      command=lambda: update_checkboxes(check_var_harmonic_drive))
-checkbox_harmonic_drive.pack(padx=10, pady=2)
+checkbox_harmonic_drive.pack(padx=1, pady=1)
 
 #Entry Plot Harmonic Drive
 frame_plot_h_d = ttk.Frame(root)
-frame_plot_h_d.pack(side=tk.TOP, fill='x', padx=10, pady=2)
+frame_plot_h_d.pack(side=tk.TOP, fill='x', padx=1, pady=1)
 ttk.Label(frame_plot_h_d, text="Plot Harmonic Drive Parameter").grid(row=0, column=0, columnspan=2)
 
 entry_phi_wg = create_entry_frame(frame_plot_h_d, "Drive Angle Wavegenerator | phi_wg", hd.phi_wg * 180/np.pi, 1)
@@ -567,29 +551,29 @@ entry_phi_wg.bind("<Return>", (lambda event: update_plot(calculate = False)))
 
 # Button for Animation
 button_start_stop = ttk.Button(root, text="Start/Stop", command=start_stop_animation)
-button_start_stop.pack(padx=10, pady=2)
+button_start_stop.pack(padx=1, pady=1)
 
 check_var_safe_animation = tk.BooleanVar(root)
 checkbox_safe_animation = ttk.Checkbutton(root, text="Safe Animation", variable=check_var_safe_animation)
-checkbox_safe_animation.pack(padx=10, pady=2)
+checkbox_safe_animation.pack(padx=1, pady=1)
         
 #---
 
 check_var_array_flexspline_tooth = tk.BooleanVar(root)
 checkbox_array_flexspline_tooth = ttk.Checkbutton(root, text="Array of Flexspline Tooth", variable=check_var_array_flexspline_tooth,
                                      command=lambda: update_checkboxes(check_var_array_flexspline_tooth))
-checkbox_array_flexspline_tooth.pack(padx=10, pady=2)
+checkbox_array_flexspline_tooth.pack(padx=1, pady=1)
 
 check_var_3_array_flexspline_tooth = tk.BooleanVar(root)
 checkbox_3_array_flexspline_tooth = ttk.Checkbutton(root, text="Array of Flexspline Tooth (CS3)", variable=check_var_3_array_flexspline_tooth,
                                      command=lambda: update_checkboxes(check_var_3_array_flexspline_tooth))
-checkbox_3_array_flexspline_tooth.pack(padx=10, pady=2)
+checkbox_3_array_flexspline_tooth.pack(padx=1, pady=1)
 
 #Buttons
 button_close = ttk.Button(root, text="close", command=close)
-button_close.pack(padx=10, pady=2)
+button_close.pack(padx=1, pady=1)
 
 button_update = ttk.Button(root, text="update", command=update_plot)
-button_update.pack(padx=10, pady=2)
+button_update.pack(padx=1, pady=1)
 
 root.mainloop()

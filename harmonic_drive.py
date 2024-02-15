@@ -8,6 +8,8 @@ from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 from matplotlib.collections import PatchCollection
 
+import time
+
 from tqdm import tqdm
 
 def ROT(phi):
@@ -20,23 +22,24 @@ def ROTATE(vec_arr, phi):
     '''
     rotates a curve with angle phi around the origin/z-axis
     curve --> ([x,y],)-vectors in an (:,2)-array'''
-    return np.array([np.dot(ROT(phi), xy) for xy in vec_arr])
+    #return np.array([np.dot(ROT(phi), xy) for xy in vec_arr])
+    return np.einsum('ij, kj -> ki', ROT(phi), vec_arr)
 
 def MIRROR(vec_arr, axis = 'x'):
     '''
     mirrors a curve on the x or y-axis
     curve --> ([x,y],)-vectors in an (:,2)-array'''
     if axis == 'x':
-        return np.flip(np.array([np.array([x,-y]) for x,y in vec_arr]), axis = 0)
+        return np.flip(np.array([1,-1])*vec_arr, axis = 0)
     if axis == 'y':
-        return np.flip(np.array([np.array([-x,y]) for x,y in vec_arr]), axis = 0)
+        return np.flip(np.array([-1,1])*vec_arr, axis = 0)
 
 def length_vec_array(vec_arr):
     '''
     length of a curve (approximation)
     curve --> ([x,y],)-vectors in an (:,2)-array'''
-    tangent = np.gradient(vec_arr)[0]
-    return np.sum( np.array( [np.linalg.norm(t) for t in tangent] ) )
+    grad = np.gradient(vec_arr)[0]
+    return np.sqrt(np.einsum('ij,ij->i', grad , grad)).sum()
 
 def gear_from_flank(flank, z):
     '''
@@ -114,10 +117,6 @@ class Flexspline():
         self.flank = [] #curve of tooth-flank
         self.tooth = [] #curve of tooth
     
-        self.r_z_i         = []
-        self.CS2_i         = []
-        self.inside_fibre  = []
-
         self.update()
 
     def __setattr__(self, name, value):
@@ -193,7 +192,7 @@ class Flexspline():
             {"start": beta_5,"end": beta_6, "m": np.array([0,0]), "r": r_fl_6}
         ]
         
-        beta_flank = np.linspace(0, beta_6, num_of_discretization)
+        beta_flank = np.linspace(0, beta_6, num_of_discretization, endpoint=False)
         flank = np.zeros((len(beta_flank),2))
         
         for idx in range(len(flank)):
@@ -249,7 +248,7 @@ class Flexspline():
         flank = np.array([np.array([-y,x-self.d_nf/2]) for x,y in flank])
         
         #TODO More precise way to calculate the normal vector from the 
-        #definition of the tooth flank:
+        #definition of the tooth flank
         tangent = np.gradient(flank)[0]
         normal = np.array([[y,-x]for x,y in tangent])
         normal_flank = np.array([1/np.linalg.norm(n)*n for n in normal])
@@ -275,7 +274,7 @@ class Flexspline():
         gear = self.gear()
         gear_polygon = sp.Polygon(gear).buffer(0)
         
-        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10))
+        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10), endpoint=False)
         inner_circle_polygon = sp.Polygon([[self.d_i/2*np.cos(alpha), self.d_i/2*np.sin(alpha)] for alpha in ALPHA])
         
         return gear_polygon.difference(inner_circle_polygon)
@@ -283,11 +282,11 @@ class Flexspline():
     def gear_deformed(self):
         '''
         deformed contour of the gear
-        ! only works after r_z_i (vectors to toot i) and CS2_i (coordinate system of toot i)
+        ! only works after r_z_i (vectors to toot i) and CS_2_i (coordinate system of toot i)
         have been set'''
-        gear_deformed = self.r_z_i[0] + np.array([np.dot(self.CS2_i[0], xy) for xy in self.tooth])
+        gear_deformed = self.r_z_i[0] + np.array([np.dot(self.CS_2_i[0], xy) for xy in self.tooth])
         for i in range(1,int(self.z)):
-            tooth_i = np.array([self.r_z_i[i] + np.dot(self.CS2_i[i], xy) for xy in self.tooth])
+            tooth_i = np.array([self.r_z_i[i] + np.dot(self.CS_2_i[i], xy) for xy in self.tooth])
             gear_deformed = np.append(gear_deformed, tooth_i, axis = 0)
         
         return gear_deformed
@@ -352,13 +351,13 @@ class Wavegenerator():
         (curve --> ([x,y],)-vectors in an (:,2)-array)'''
         
         if self.shape == 'elliptical':
-            t = np.linspace(0,2*np.pi,num_of_discretization)
+            t = np.linspace(0,2*np.pi,num_of_discretization, endpoint=False)
             return np.array([np.array([self.a * np.cos(t),
                                        self.b * np.sin(t)]) for t in t])
             
         if self.shape == '345polynomial':
             #composed of 345 polynomial and circular arc
-            T = np.linspace(0,2*np.pi,num_of_discretization)
+            T = np.linspace(0,2*np.pi,num_of_discretization, endpoint=False)
             quarter = int(num_of_discretization/4)
             rho = np.zeros(int(quarter))
             for i in range(int(quarter)):
@@ -407,7 +406,7 @@ class Wavegenerator():
         aequidistant = np.zeros((num_of_discretization, 2))
         
         if self.shape == 'elliptical':
-            T = np.linspace(0,2*np.pi,num_of_discretization)
+            T = np.linspace(0,2*np.pi,num_of_discretization, endpoint=False)
             for i in range(num_of_discretization):
                 x = self.a * np.cos(T[i])
                 y = self.b * np.sin(T[i])
@@ -417,7 +416,7 @@ class Wavegenerator():
             return aequidistant
         
         if self.shape == '345polynomial':
-            T = np.linspace(0,2*np.pi,num_of_discretization)            
+            T = np.linspace(0,2*np.pi,num_of_discretization, endpoint=False)            
             quarter = int(num_of_discretization/4)
             aequidistant_quarter = np.zeros((quarter, 2))
             for i in range(quarter):
@@ -524,7 +523,7 @@ class Wavegenerator():
         '''displays rotated profil of the Wavegenerator (angle phi)
         index: Possibility to add a hole to indicate the orientation'''
         if index == True:
-            ALPHA = np.linspace(0,2*np.pi,100)
+            ALPHA = np.linspace(0,2*np.pi,100, endpoint=False)
             m = np.dot(ROT(phi), self.profil[0]) * 0.95
             index_circle_polygon = sp.Polygon([[m[0] + np.cos(alpha), m[1] + np.sin(alpha)] for alpha in ALPHA])
             return sp.Polygon(ROTATE(self.profil, phi)).buffer(0).difference(index_circle_polygon)
@@ -552,7 +551,7 @@ class CircularSpline():
         gear = self.gear()
         gear_polygon = sp.Polygon(gear).buffer(0)
         
-        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10))
+        ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10), endpoint=False)
         d_o = (gear[0,0]*2) * 1.1
         outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
         
@@ -577,7 +576,7 @@ class DynamicSpline():
         index: Possibility to add a hole to indicate the orientation'''
         gear = self.gear()
         if index == True:
-            ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10))
+            ALPHA = np.linspace(0,2*np.pi,int(len(gear)/10), endpoint=False)
             d_o = (gear[0,0]*2) * 1.05 #outer diameter
             outer_circle_polygon = sp.Polygon([[d_o/2*np.cos(alpha), d_o/2*np.sin(alpha)] for alpha in ALPHA])
             m = np.dot(ROT(phi), gear[0]) * 1.05
@@ -601,7 +600,7 @@ class Bearing():
         '''
         deformed bearing
         ! only works after r_b_i (vectors to bearing roller i) have been set'''
-        ALPHA = np.linspace(0,2*np.pi,50)
+        ALPHA = np.linspace(0,2*np.pi,50, endpoint=False)
         
         bearing = np.zeros((int(self.n),50,2))
         
@@ -703,14 +702,13 @@ class HarmonicDrive():
         a = self.wg.a
         q_nf = self.q_nf
         u_nf = self.fs.u_nf
-        i = self.i
 
         #lookup-table
-        neutral_fibre = self.wg.aequidistant(self.q_nf, num_of_discretization = num_of_discretization)
+        neutral_fibre = self.wg.aequidistant(q_nf, num_of_discretization = num_of_discretization)
         gradient = np.gradient(neutral_fibre)[0]
         
-        l_nf = np.cumsum( np.array([np.linalg.norm(xy) for xy in gradient]) ) #length of neutral fibre
-        l_nf_t = np.linspace(0,2*np.pi,len(neutral_fibre)) #t to length of neutral fibre
+        l_nf = np.cumsum(np.sqrt(np.einsum('ij,ij->i', gradient , gradient))) #length of neutral fibre
+        l_nf_t = np.linspace(0,2*np.pi,len(neutral_fibre), endpoint=False) #t to length of neutral fibre
         
         #euler forward
         d_phi_wg = phi_wg_lim/num_of_discretization
@@ -722,7 +720,7 @@ class HarmonicDrive():
         e_2_1 = np.zeros((num_of_discretization,2))
         e_2_2 = np.zeros((num_of_discretization,2))
         
-        for idx in range(num_of_discretization-1):
+        for idx in tqdm(range(num_of_discretization-1)):
             while s_i >= u_nf:
                 s_i = s_i - u_nf
             t = np.interp(s_i,l_nf,l_nf_t)
@@ -744,70 +742,52 @@ class HarmonicDrive():
             e_2_1[idx] = -1/np.linalg.norm(v_r)*v_r
             e_2_2[idx] = np.array([-e_2_1[idx,1],e_2_1[idx,0]])
         
-        phi_wg_r_z = np.linspace(0,phi_wg_lim,num_of_discretization)
-        phi_ds_r_z = -phi_wg_r_z/i
+        CS_2 = [np.vstack((xy_1, xy_2)).T for xy_1, xy_2 in zip(e_2_1, e_2_2)]
+        
+        phi_wg_r_z = np.linspace(0,phi_wg_lim,num_of_discretization, endpoint=False)
+        phi_ds_r_z = -phi_wg_r_z/self.i
                 
         _3_r_z = np.array([ np.dot(ROT(-phi),xy) for phi, xy in zip(phi_ds_r_z, r_z)])
         _3_e_2_1 = np.array([ np.dot(ROT(-phi),xy) for phi, xy in zip(phi_ds_r_z, e_2_1)])
         _3_e_2_2 = np.array([ np.dot(ROT(-phi),xy) for phi, xy in zip(phi_ds_r_z, e_2_2)])
+        _3_CS_2 = [np.vstack((xy_1, xy_2)).T for xy_1, xy_2 in zip(_3_e_2_1, _3_e_2_2)]
         
-        return r_z, e_2_1, e_2_2, _3_r_z, _3_e_2_1, _3_e_2_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z
+        return r_z, CS_2, _3_r_z, _3_CS_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z
     
     def calculate_kinematics(self, num_of_discretization = 100000):
         print("calculate kinematics...")
 
-        (r_z, e_2_1, e_2_2, _3_r_z, _3_e_2_1, _3_e_2_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z) =  self.kincematics(num_of_discretization = num_of_discretization, phi_wg_lim = 2*np.pi)
+        (r_z, CS_2, _3_r_z, _3_CS_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z) =  self.kincematics(num_of_discretization = num_of_discretization, phi_wg_lim = np.pi)
 
         self.r_z = r_z
-        self.e_2_1 = e_2_1
-        self.e_2_2 = e_2_2
-        
+        self.CS_2 = np.array(CS_2)
+
+        #kinematics_low_res = self.kincematics(num_of_discretization = 100, phi_wg_lim = np.pi)
+
         self._3_r_z = _3_r_z
-        self._3_e_2_1 = _3_e_2_1
-        self._3_e_2_2 = _3_e_2_2
-        
+        self._3_CS_2 = np.array(_3_CS_2)
+
         self.l_nf = l_nf
         self.l_nf_t = l_nf_t
-        
+
         self.phi_wg_r_z = phi_wg_r_z
         self.phi_ds_r_z = phi_ds_r_z
         
-    def calculate_CS2_i(self):
+    def calculate_CS_2_i(self):
         u_nf = self.fs.u_nf
         z_fs = self.fs.z
-        l_nf = self.l_nf
-        l_nf_t = self.l_nf_t
-        a = self.wg.a
+        
         q_nf = self.q_nf
+        
         phi_wg = self.phi_wg
-        r_z = self.r_z
-        phi_wg_r_z = self.phi_wg_r_z
-        e_2_1 = self.e_2_1
-        e_2_2 = self.e_2_2
-        i = self.i
+        self.phi_ds = phi_wg/self.i
         
-        self.phi_ds = phi_wg/i
-        r_z_i = np.zeros((int(z_fs),2))
-        CS2_i = np.zeros((int(z_fs),2,2))
-        
-        #Tooth 1:
-        s_0 = -phi_wg*(a+q_nf) #way tooth 1
-                
-        r_z_i[0] = np.array([np.interp(-phi_wg,phi_wg_r_z,r_z[:,0]),
-                             np.interp(-phi_wg,phi_wg_r_z,r_z[:,1])])
-        r_z_i[0 + int(z_fs/2)] = -r_z_i[0]
-        
-        e_2_1_i = np.array([np.interp(-phi_wg,phi_wg_r_z,e_2_1[:,0]),
-                            np.interp(-phi_wg,phi_wg_r_z,e_2_1[:,1])])
-        e_2_2_i = np.array([np.interp(-phi_wg,phi_wg_r_z,e_2_2[:,0]),
-                            np.interp(-phi_wg,phi_wg_r_z,e_2_2[:,1])])
-        
-        CS2_i[0] = np.array([[e_2_1_i[0],e_2_2_i[0]],
-                             [e_2_1_i[1],e_2_2_i[1]]])
-        
-        CS2_i[0 + int(z_fs/2)] = -CS2_i[0]
-        
-        for i_tooth in range(1,int(z_fs/2)):
+        r_z_i = np.zeros((int(z_fs),2)) #vector to tooth i
+        CS_2_i = np.zeros((int(z_fs),2,2)) #x_2, y_2 coordinate System of tooth i
+
+        s_0 = -phi_wg*(self.wg.a+q_nf) #way tooth 1
+             
+        for i_tooth in range(0,int(z_fs/2)):
             s_i = u_nf/z_fs * i_tooth + s_0
             
             if s_i > u_nf/2:
@@ -815,7 +795,7 @@ class HarmonicDrive():
                 s_0 = s_0 - u_nf/2
                 phi_wg = phi_wg + np.pi
                             
-            t_i = np.interp(s_i, l_nf, l_nf_t) 
+            t_i = np.interp(s_i, self.l_nf, self.l_nf_t) 
             p_i = self.wg.point_aequidistant(q_nf, t_i)
             
             r_z_i[i_tooth] = np.dot(ROT(phi_wg), p_i)
@@ -826,83 +806,63 @@ class HarmonicDrive():
             e_2_1_i = np.dot(ROT(phi_wg), -tangent)
             e_2_2_i = np.array([-e_2_1_i[1],e_2_1_i[0]])
             
-            CS2_i[i_tooth] = np.array([[e_2_1_i[0],e_2_2_i[0]],
-                                       [e_2_1_i[1],e_2_2_i[1]]])
+            CS_2_i[i_tooth] = np.array([[e_2_1_i[0],e_2_2_i[0]],
+                                        [e_2_1_i[1],e_2_2_i[1]]])
             
-            CS2_i[i_tooth + int(z_fs/2)] = -CS2_i[i_tooth]
-        
-        self.r_z_i = r_z_i
-        self.CS2_i = CS2_i
-            
+            CS_2_i[i_tooth + int(z_fs/2)] = -CS_2_i[i_tooth]
+                    
         self.fs.r_z_i = r_z_i
-        self.fs.CS2_i = CS2_i
+        self.fs.CS_2_i = CS_2_i
         
         self.fs.inside_fibre = self.inside_fibre_rotated(phi_wg, num_of_discretization = 100)
         
     def calculate_flank_cs(self):
         print('HD     >calculate_flank_cs()')
-        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=50)  
-    
-        kinematics =  self.kincematics(num_of_discretization=1000, phi_wg_lim = np.pi/2)
-        (r_z, e_2_1, e_2_2) = kinematics[:3]
-        
-        r_flank = np.zeros((len(flank), len(r_z), 2))
-        n_flank = np.zeros((len(flank), len(r_z), 2))
-    
-        sc_pr_r_n = np.zeros((len(flank), len(r_z)))
+        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=100)  
     
         flank_cs = []
-    
-        for idx_flank in tqdm(range(len(flank))):
-        #for idx_flank in range(len(flank)):  
-            r_flank[idx_flank] = [xy_3 + np.dot(flank[idx_flank], np.vstack((xy_1,xy_2))) for xy_1, xy_2, xy_3  in zip(e_2_1, e_2_2, r_z)]
-            n_flank[idx_flank] = [np.dot(normal[idx_flank], np.vstack((xy_1,xy_2))) for xy_1, xy_2  in zip(e_2_1, e_2_2)]
-            
-            v_r_flank = np.gradient(r_flank[idx_flank])[0]    
+        idx_end = int(len(self.r_z)/2)
 
-            sc_pr_r_n[idx_flank] = np.array([np.dot(xy_1, xy_2) for xy_1, xy_2 in zip(v_r_flank, n_flank[idx_flank])])
+        for idx_flank in tqdm(range(len(flank))):
+            r_flank = self.r_z[0:idx_end] + np.dot(self.CS_2[0:idx_end], flank[idx_flank])
+            v_r_flank = np.gradient(r_flank)[0]
             
-            sc = sc_pr_r_n[idx_flank][0:-2]
-                
+            n_flank = np.dot(self.CS_2[0:idx_end], normal[idx_flank])
+            
+            sc = np.einsum('ij,ij->i', v_r_flank , n_flank)[:-2]
+            
             idx = np.where(sc[:-1] * sc[1:] < 0)[0] + 1
-            
-            if len(idx) == 3:
-                flank_cs.append(r_flank[idx_flank,idx[1]])
+        
             if len(idx) == 2:
-                flank_cs.append(r_flank[idx_flank,idx[0]])
-                
+                flank_cs.append(r_flank[idx[0]])
+            if len(idx) == 3:
+                flank_cs.append(r_flank[idx[1]])
+
         flank_cs = np.array(flank_cs)
         self.cs.flank = flank_cs
+        
         return flank_cs
 
     def calculate_flank_ds(self):
         print('HD     >calculate_flank_ds()')
-        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=50)  
+        flank, normal = self.fs.calculate_flank_normal(num_of_discretization=100)  
         
         flank = MIRROR(flank, axis = 'y')
         normal = MIRROR(normal, axis = 'y')
-            
-        kinematics =  self.kincematics(num_of_discretization=1000, phi_wg_lim = np.pi/2)
-        (_3_r_z, _3_e_2_1, _3_e_2_2) = kinematics[3:6]
-    
-        r_flank = np.zeros((len(flank), len(_3_r_z), 2))
-        n_flank = np.zeros((len(flank), len(_3_r_z), 2))
-       
+        
         flank_ds = []
-        flank_ds_idx = []
-    
-        idx_0 = []
+        idx_end = int(len(self.r_z)/2)
+        
         for idx_flank in tqdm(range(len(flank))):
-        #for idx_flank in range(len(flank)): 
-            r_flank[idx_flank] = np.array([xy_3 + np.dot(flank[idx_flank], np.vstack((xy_1,xy_2))) for xy_1, xy_2, xy_3  in zip(_3_e_2_1, _3_e_2_2, _3_r_z)])
-            n_flank[idx_flank] = np.array([np.dot(normal[idx_flank], np.vstack((xy_1,xy_2))) for xy_1, xy_2  in zip(_3_e_2_1, _3_e_2_2)])
+            r_flank = self._3_r_z[0:idx_end] + np.dot(self._3_CS_2[0:idx_end], flank[idx_flank])
+            v_r_flank = np.gradient(r_flank)[0]
             
-            v_r_flank = np.gradient(r_flank[idx_flank])[0]    
+            n_flank = np.dot(self._3_CS_2[0:idx_end], normal[idx_flank])
             
-            sc_pr_r_n = np.array([np.dot(xy_1, xy_2) for xy_1, xy_2 in zip(v_r_flank, n_flank[idx_flank])])[0:-2]
+            sc = np.einsum('ij,ij->i', v_r_flank , n_flank)[:-2]
             
-            idx = np.where(sc_pr_r_n[:-1] * sc_pr_r_n[1:] < 0)[0] + 1
-                        
+            idx = np.where(sc[:-1] * sc[1:] < 0)[0] + 1
+
             if idx_flank == 0:
                 idx_0 = idx[1]
             else:
@@ -911,27 +871,27 @@ class HarmonicDrive():
                 else:
                     diff = [abs(idx-idx_0) for idx in idx]
                     idx_0 = idx[np.argmin(diff)]
-      
-            flank_ds.append(r_flank[idx_flank,idx_0]) 
-            flank_ds_idx.append(idx_0)
-                        
+    
+            flank_ds.append(r_flank[idx_0]) 
+                
         flank_ds = np.array(flank_ds)
         self.ds.flank = flank_ds
+        
         return flank_ds
     
     def calculate_bearing_kinematics(self):
         '''
         TODO'''
         phi_wg_lim = np.pi
-        num_of_discretization = 100000
+        num_of_discretization = 10000
         u_br = self.wg.length_aequidistant(self.wg.a, self.wg.b, self.br.d_br/2)
         
         #lookup-table
-        bearing_fibre = self.wg.aequidistant(self.br.d_br/2)
+        bearing_fibre = self.wg.aequidistant(self.br.d_br/2, num_of_discretization = num_of_discretization)
         gradient = np.gradient(bearing_fibre)[0]
         
-        l_br = np.cumsum( np.array([np.linalg.norm(xy) for xy in gradient]) ) #length of neutral fibre
-        l_br_t = np.linspace(0,2*np.pi,len(bearing_fibre)) #t to length of neutral fibre
+        l_br = np.cumsum(np.sqrt(np.einsum('ij,ij->i', gradient , gradient)))
+        l_br_t = np.linspace(0,2*np.pi,len(bearing_fibre), endpoint=False)
         
         #euler forward
         d_phi_wg = phi_wg_lim/num_of_discretization
