@@ -4,6 +4,7 @@ import scipy.special
 
 import shapely as sp
 
+import matplotlib.pyplot as plt
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 from matplotlib.collections import PatchCollection
@@ -22,7 +23,6 @@ def ROTATE(vec_arr, phi):
     '''
     rotates a curve with angle phi around the origin/z-axis
     curve --> ([x,y],)-vectors in an (:,2)-array'''
-    #return np.array([np.dot(ROT(phi), xy) for xy in vec_arr])
     return np.einsum('ij, kj -> ki', ROT(phi), vec_arr)
 
 def MIRROR(vec_arr, axis = 'x'):
@@ -39,10 +39,13 @@ def TRANSFORM(vec_arr, CS, r_0 = np.array([0,0])):
     transforms a curve in the coordinate system CS with origin r_0'''
     return r_0 + np.einsum('ij, kj -> ki', CS, vec_arr)
 
-def CIRCLE(r, num_of_discretization = 100, r_0 = np.array([0,0])):
-    ALPHA = np.linspace(0, 2*np.pi, num_of_discretization, endpoint=False)
+def CIRCLE(r, num_of_discretization = 100, r_0 = [0,0]):
+    ALPHA = np.linspace(0, 2*np.pi, num_of_discretization)
     return r_0 + r * np.array([np.cos(ALPHA), np.sin(ALPHA)]).T
 
+def plot_circle(ax, r, center = [0,0], num_of_discretization = 100, **kwargs):
+    plot_va(ax, CIRCLE(r, r_0 = center ,num_of_discretization = num_of_discretization), **kwargs)
+ 
 def length_vec_array(vec_arr):
     '''
     length of a curve (approximation)
@@ -104,44 +107,30 @@ class Flexspline():
                                  'r_hr', 'r_fr'}
         
         #---general parameters---:
-        self.z      = 20    #number of teeth
-        self.d_i    = 75    #Inner diameter
-        self.s_st   = 2.5   #Sprocket Thickness
-        self.d_nf   = []    #Neutral Fiber Diameter
-        self.u_nf   = []    #circumference neutral fiber
-        self.d_f    = []    #Foot circle diameter
-        self.d      = 81    #Pitch circle diameter
-        self.d_h    = 82    #Head circle diameter
+        self.z      = [] #number of teeth
+        self.d_i    = [] #Inner diameter
+        self.s_st   = [] #Sprocket Thickness
+        self.d_nf   = [] #Neutral Fiber Diameter
+        self.u_nf   = [] #circumference neutral fiber
+        self.d_f    = [] #Foot circle diameter
+        self.d      = [] #Pitch circle diameter
+        self.d_h    = [] #Head circle diameter
 
         #---tooth parameters---
         #TODO tooth module
-        self.alpha  = 20*np.pi/180  #Tooth flank angle
-        self.c      = 1             #Tooth space ratio
-        self.r_fh   = 5             #Head flank radius
-        self.r_ff   = 5             #Foot flank radius
-        self.r_hr   = 0.3           #Head rounding
-        self.r_fr   = 0.3           #Foot rounding
-        self.h_t    = []            #Tooth Height
+        self.alpha  = [] #Tooth flank angle
+        self.c      = [] #Tooth space ratio
+        self.r_fh   = [] #Head flank radius
+        self.r_ff   = [] #Foot flank radius
+        self.r_hr   = [] #Head rounding
+        self.r_fr   = [] #Foot rounding
+        self.h_t    = [] #Tooth Height
 
         self.flank = [] #curve of tooth-flank
         self.tooth = [] #curve of tooth
-    
-        self.update()
-
-    def __setattr__(self, name, value):
-        if name == 'update_parameter':
-            self.__dict__[name] = value
-            return
         
-        if name in self.update_parameter:
-            self.__dict__[name] = value
-            try:
-                self.update()
-            except:
-                pass
-        else:
-            self.__dict__[name] = value
-        
+        self.inside_fibre = []
+                
     def update(self):
         self.d_nf = self.d_i + self.s_st
         self.d_f  = self.d_i + self.s_st * 2 
@@ -272,22 +261,22 @@ class Flexspline():
                         
         return np.array([np.array([-y,x-self.d_nf/2]) for x,y in tooth])
     
-    def gear(self):
+    def gear_undeformed(self):
         '''
-        contour of the gear'''
+        contour of the undeformed gear'''
         return gear_from_flank(self.flank, self.z)
     
-    def polygon(self):
+    def polygon_undeformed(self):
         '''
         displays the gear contour as a plygon (e.g. to display the gear wheel in color)'''
-        gear = self.gear()
+        gear = self.gear_undeformed()
         gear_polygon = sp.Polygon(gear).buffer(0)
 
         inner_circle_polygon = sp.Polygon(CIRCLE(self.d_i/2))
                 
         return gear_polygon.difference(inner_circle_polygon)
     
-    def gear_deformed(self):
+    def gear(self):
         '''
         deformed contour of the gear
         ! only works after r_z_i (vectors to toot i) and CS_2_i (coordinate system of toot i)
@@ -299,16 +288,12 @@ class Flexspline():
         
         return gear_deformed
     
-    def polygon_deformed(self):
+    def polygon(self):
         '''
         displays the deformed contour of the gear as a plygon (e.g. to display the gear wheel in color)
-        ! only works after r_z_i, CS2_i and inside_fibre have been set'''
-        gear_deformed = self.gear_deformed()
-        polygon_gear_deformed = sp.Polygon(gear_deformed).buffer(0)
-        
+        ! only works after r_z_i, CS2_i and inside_fibre have been set'''        
         inside_fibre_polygon = sp.Polygon(self.inside_fibre)
-        
-        return polygon_gear_deformed.difference(inside_fibre_polygon)
+        return sp.Polygon(self.gear()).buffer(0).difference(inside_fibre_polygon)
         
 class Wavegenerator():
     '''
@@ -321,34 +306,20 @@ class Wavegenerator():
         #parameters that trigger a parameter update when changed:
         self.update_parameter = {'a', 'b', 'arc', 'shape'}
         
-        self.a = 1      #Large semi-axis
-        self.b = 0.9    #Small semi-axis
-        self.arc = 2 * np.pi/180 #angle of the arc, only used for 345polynomial profil
+        self.a = []    #Large semi-axis
+        self.b = []    #Small semi-axis
+        self.arc = []  #angle of the arc, only used for 345polynomial profil
         
         if shape == 1:
             self.shape = 'elliptical'
         elif shape == 2:
             self.shape = '345polynomial'
         
-        self.profil = []
+        self.phi = []
+        self.profil_unrotated = []
         
-    def __setattr__(self, name, value):
-        if name == 'update_parameter':
-            self.__dict__[name] = value
-            return
-        
-        if name in self.update_parameter:
-            self.__dict__[name] = value
-            try:
-                self.update()
-            except:
-                pass
-        else:
-            self.__dict__[name] = value
-        
-
     def update(self):
-        self.profil = self.calculate_profil(num_of_discretization = 1000)
+        self.profil_unrotated = self.calculate_profil(num_of_discretization = 1000)
     
     def calculate_profil(self, num_of_discretization = 1000):
         '''
@@ -522,22 +493,23 @@ class Wavegenerator():
                 x,y = self.tangent_aequidistant(q, 2*np.pi-t)
                 return np.array([-x,y])
 
-    def profil_rotated(self, phi):
+    def profil(self):
         '''
         returns the rotated profil of the Wavegenerator (angle phi)'''
-        return ROTATE(self.profil, phi)
+        #self.profil = ROTATE(self.profil_unrotated, phi)
+        return ROTATE(self.profil_unrotated, self.phi)
     
-    def polygon(self, phi = 0, index = True):
+    def polygon(self, index = True):
         '''displays rotated profil of the Wavegenerator (angle phi)
         index: Possibility to add a hole to indicate the orientation'''
+        profil = self.profil()
         if index == True:
-            m = np.dot(ROT(phi), self.profil[0]) * 0.95            
+            m = profil[0] * 0.95            
             index_circle_polygon = sp.Polygon(CIRCLE(1, r_0 = m))
-            return sp.Polygon(ROTATE(self.profil, phi)).buffer(0).difference(index_circle_polygon)
+            return sp.Polygon(self.profil()).buffer(0).difference(index_circle_polygon)
         else:
-            return sp.Polygon(ROTATE(self.profil, phi)).buffer(0)
+            return sp.Polygon(self.profil()).buffer(0)
         
-
 class CircularSpline():
     '''
     represents the Circular Spline (CS) of a Harmonic Drive gearbox'''
@@ -568,30 +540,29 @@ class DynamicSpline():
     def __init__(self):
         self.z      = []
         self.flank  = []
+        
+        self.phi    = []
                 
     def gear(self):
         '''
         contour of the gear'''
         flank = np.array([xy for xy in MIRROR(self.flank) if np.arctan(xy[1]/xy[0]) < np.pi/self.z ])
-        return gear_from_flank(flank, self.z)
+        return ROTATE(gear_from_flank(flank, self.z), self.phi)
         
-    def polygon(self, phi = 0, index = True):
+    def polygon(self, index = True):
         '''
         displays the gear contour as a plygon (e.g. to display the gear wheel in color)
         index: Possibility to add a hole to indicate the orientation'''
         gear = self.gear()
+        r_o = self.flank[-1,0] * 1.05 #outer diameter
+        gear_polygon = sp.Polygon(gear).buffer(0)
+        outer_circle_polygon = sp.Polygon(CIRCLE(r_o))
         if index == True:
-            r_o = gear[0,0] * 1.05 #outer diameter
-            outer_circle_polygon = sp.Polygon(CIRCLE(r_o))
-            
-            m = np.dot(ROT(phi), gear[0]) * 1.05
+            m = gear[0] * 1.05
             index_circle_polygon = sp.Polygon(CIRCLE(1, r_0 = m))
-            
-            gear_polygon = sp.Polygon(ROTATE(gear, phi)).buffer(0)
-            
             return outer_circle_polygon.difference(gear_polygon).difference(index_circle_polygon)
         else:
-            return sp.Polygon(ROTATE(gear, phi)).buffer(0)
+            return outer_circle_polygon.difference(gear_polygon)
 
 class Bearing():
     '''
@@ -607,7 +578,7 @@ class Bearing():
         ! only works after r_b_i (vectors to bearing roller i) have been set'''
         return np.array([CIRCLE(self.d_br/2, num_of_discretization=100, r_0 = r_br) for r_br in self.r_br_i])
     
-    def polygons(self, phi = 0):
+    def polygons(self):
         '''
         displays the bearing rollers as a plygons'''
         bearing = self.bearing()
@@ -618,7 +589,7 @@ class Bearing():
 class HarmonicDrive():
     def __init__(self, flexspline_inst, wavegenerator_inst, circularspline_inst, dynamicspline_inst, bearing_inst):
         #parameters that trigger a parameter update when changed:
-        self.update_parameter = {'i', 'd_br'}
+        self.update_parameter = {'i'}
         
         #objects
         self.fs = flexspline_inst
@@ -628,41 +599,77 @@ class HarmonicDrive():
         self.br = bearing_inst
         
         #parameter
-        self.i = -20        #Transmission Ratio (i_wg->ds)
-        self.phi_wg = 0     #Drive Angle Wavegenerator
-        self.phi_ds = 0     #Output Angle Dynamic Spline
+        self.i = []                  #Transmission Ratio (i_wg->ds)
+        self.__dict__['phi_wg'] = [] #Drive Angle Wavegenerator
+        self.phi_ds = []             #Output Angle Dynamic Spline
         
-        self.q_nf = []      #Equidistant distance neutral fiber
-                
-    def __setattr__(self, name, value):
-        if name == 'update_parameter':
-            self.__dict__[name] = value
-            return
+        self.q_nf = []       #Equidistant distance neutral fiber
+    
+    @property
+    def phi_wg(self):
+        return self._phi_wg
+    
+    @phi_wg.setter
+    def phi_wg(self, value):
+        self._phi_wg = value
+        self.wg.phi = self._phi_wg
         
-        if name in self.update_parameter:
-            self.__dict__[name] = value
-            try:               
-                self.update()
-            except:
-                pass
-        elif name == 'phi_wg':
-            self.__dict__[name] = value
-            self.phi_ds = self.phi_wg/self.i
-        else:
-            self.__dict__[name] = value
+        self.phi_ds = self.phi_wg/self.i
+        self.ds.phi = self.phi_ds
+        
+        self.calc_flexspline()
+        self.calc_bearing()
 
+    def initial(self):
+        self.i = -20
+        
+        self.fs.d_i = 75
+        self.fs.s_st = 2.5
+        self.fs.d = 83
+        self.fs.d_h = 86
+        
+        self.fs.alpha = 20*np.pi/180
+        self.fs.c = 1
+        self.fs.r_fh = 8
+        self.fs.r_ff = 8
+        self.fs.r_hr = 1
+        self.fs.r_fr = 1
+        
+        self.br.d_br = 5
+        self.br.n = 20
+        
+        self.wg.arc = 4*np.pi/180
+        
+        self._phi_wg = 0
+        
+        self.update()
+    
+    def calc(self):
+        print("> calc()")
+        self.calc_flexspline_kinematics()
+    
+        self.calc_bearing_kinematics()
+    
+        self.calc_circular_spline_flank()
+    
+        self.calc_dynamic_spline_flank()
+    
     def update(self):
+        print("> update()")
         #Number of teeth
         self.fs.z = 2*(-self.i)
         self.cs.z = self.fs.z + 2
         self.ds.z = self.fs.z
+        
+        self.fs.update()
         
         self.q_nf = self.br.d_br + self.fs.s_st/2
         
         #calculate a and b according to the kinematic boundary conditions
         self.wg.a = self.fs.u_nf * (-self.i + 1)/-self.i * 1/(2*np.pi) - self.q_nf
         self.wg.b = optimize.newton(func = self.optimize_u_nf__b, x0 = self.wg.a/2, args=(self.wg.a, self.q_nf, self.fs.u_nf),)
-            
+        self.wg.update()  
+        
     def optimize_u_nf__b(self, b, *args):
         '''
         optimization function for calculating a and b'''
@@ -748,7 +755,7 @@ class HarmonicDrive():
         
         return r_z, CS_2, _3_r_z, _3_CS_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z
     
-    def calculate_kinematics(self, num_of_discretization = 100000):
+    def calc_flexspline_kinematics(self, num_of_discretization = 100000):
         print("calculate kinematics...")
 
         (r_z, CS_2, _3_r_z, _3_CS_2, l_nf, l_nf_t, phi_wg_r_z, phi_ds_r_z) =  self.kincematics(num_of_discretization = num_of_discretization, phi_wg_lim = np.pi)
@@ -765,7 +772,7 @@ class HarmonicDrive():
         self.phi_wg_r_z = phi_wg_r_z
         self.phi_ds_r_z = phi_ds_r_z
         
-    def calculate_CS_2_i(self):
+    def calc_flexspline(self):
         u_nf = self.fs.u_nf
         z_fs = self.fs.z
         
@@ -805,9 +812,9 @@ class HarmonicDrive():
         self.fs.r_z_i = r_z_i
         self.fs.CS_2_i = CS_2_i
         
-        self.fs.inside_fibre = self.inside_fibre_rotated(num_of_discretization = 100)
+        self.fs.inside_fibre = self.inside_fibre_rotated(num_of_discretization = 1000)
         
-    def calculate_flank_cs(self):
+    def calc_circular_spline_flank(self):
         print('HD     >calculate_flank_cs()')
         flank, normal = self.fs.calculate_flank_normal(num_of_discretization=100)  
     
@@ -834,7 +841,7 @@ class HarmonicDrive():
         
         return flank_cs
 
-    def calculate_flank_ds(self):
+    def calc_dynamic_spline_flank(self):
         print('HD     >calculate_flank_ds()')
         flank, normal = self.fs.calculate_flank_normal(num_of_discretization=100)  
         
@@ -870,7 +877,7 @@ class HarmonicDrive():
         
         return flank_ds
     
-    def calculate_bearing_kinematics(self):
+    def calc_bearing_kinematics(self):
         '''
         TODO'''
         phi_wg_lim = np.pi
@@ -917,7 +924,7 @@ class HarmonicDrive():
         self.br.u_br = u_br
         self.br.r_br = r_br
     
-    def calculate_bearing(self):
+    def calc_bearing(self):
         phi_wg = self.phi_wg
         u_br = self.br.u_br
         l_br = self.br.l_br
@@ -943,3 +950,44 @@ class HarmonicDrive():
             r_br_i[i_br + int(self.br.n/2)] = -r_br_i[i_br]
             
         self.br.r_br_i = r_br_i
+        
+def main():
+    fs = Flexspline()
+    wg = Wavegenerator()
+    cs = CircularSpline()
+    ds = DynamicSpline()
+    br = Bearing()
+    hd = HarmonicDrive(fs, wg, cs, ds, br)
+    
+    hd.initial()
+    hd.calc()
+    
+    #-------------------
+    ax = plt.gca()
+    plot_grid(ax)
+    
+    hd.phi_wg = -np.pi/8
+    
+    #Wavegenerator
+    plot_va(ax, wg.profil())
+    #plot_polygon(ax, wg.polygon(index = True))
+    
+    #Flexspline
+    plot_va(ax, fs.gear())
+    plot_va(ax, fs.inside_fibre)
+    plot_polygon(ax, fs.polygon())
+    
+    #Bearing
+    [plot_va(ax, br) for br in br.bearing()]
+    #[plot_polygon(ax, poly) for poly in br.polygons()]
+    
+    #Circular Spline
+    plot_va(ax, cs.gear())
+    plot_polygon(ax, cs.polygon())
+    
+    #Dynamic Spline
+    plot_va(ax, ds.gear())
+    plot_polygon(ax, ds.polygon(index = True))
+    
+if __name__ == "__main__":
+    main()

@@ -30,12 +30,7 @@ def plot_settings(ax):
     ax.set_axisbelow(True)
     
     ax.set_axis_off()
-    
-#TODO wegmachen plot_cirle --> plot_va, CIRCLE    
-def plot_circle(ax, r, center = [0,0], **kwargs):
-    ALPHA = np.linspace(0,2*np.pi,1000)
-    ax.plot(center[0] + r*np.cos(ALPHA), center[1] + r*np.sin(ALPHA), **kwargs)
-    
+          
 def plot_coordinate_system(ax, length, phi, x_o = 0, y_o = 0, **kwargs):
     CS = np.array([[np.cos(phi), -np.sin(phi)],
                    [np.sin(phi),  np.cos(phi)]])
@@ -91,8 +86,28 @@ def update_checkboxes_wg(current_var):
             check_var_elliptical.set(0)
             entry_arc.configure(state="normal")
 
-def update_plot(calculate = True):
+def update_plot(calc = True):
     print("update...")
+    
+    #hd
+    hd.i      = -float(entry_i.get())
+    
+    #fs
+    fs.d_i    = float(entry_d_i.get())
+    fs.s_st   = float(entry_s_st.get())
+    fs.d      = float(entry_d.get())
+    fs.d_h    = float(entry_d_h.get())
+    
+    fs.alpha  = float(entry_alpha.get())*np.pi/180
+    fs.c      = float(entry_c.get())
+    fs.r_fh   = float(entry_r_fh.get())
+    fs.r_ff   = float(entry_r_ff.get())
+    fs.r_hr   = float(entry_r_hr.get())
+    fs.r_fr   = float(entry_r_fr.get())
+
+    #br
+    br.d_br   = float(entry_d_br.get())
+    br.n      = float(entry_n.get())
     
     #wg:
     if check_var_elliptical.get() == 1:
@@ -100,31 +115,9 @@ def update_plot(calculate = True):
     elif check_var_345polynomial.get() == 1:
         wg.shape = '345polynomial'
 
-    wg.arc = float(entry_arc.get())*np.pi/180
+    wg.arc    = float(entry_arc.get())*np.pi/180
     
-    #fs
-    fs.__dict__['d_i']    = float(entry_d_i.get())
-    fs.__dict__['s_st']   = float(entry_s_st.get())
-    fs.__dict__['d']      = float(entry_d.get())
-    fs.__dict__['d_h']    = float(entry_d_h.get())
-    
-    fs.__dict__['alpha']  = float(entry_alpha.get())*np.pi/180
-    fs.__dict__['c']      = float(entry_c.get())
-    fs.__dict__['r_fh']   = float(entry_r_fh.get())
-    fs.__dict__['r_ff']   = float(entry_r_ff.get())
-    fs.__dict__['r_hr']   = float(entry_r_hr.get())
-    fs.__dict__['r_fr']   = float(entry_r_fr.get())
-    fs.update()
-
-    hd.__dict__['i']      = -float(entry_i.get())
-    
-    br.d_br               = float(entry_d_br.get())
-    br.n                  = float(entry_n.get())
-    
-    hd.phi_wg             = -float(entry_phi_wg.get())*np.pi/180    
     hd.update()
-    
-    #update entry values
     update_entrys()
     
     #update selected plot
@@ -135,10 +128,17 @@ def update_plot(calculate = True):
     elif check_var_gear.get() == 1:
         plot_view_fs_gear()
     elif check_var_harmonic_drive.get() == 1:
-        plot_view_harmonic_drive(calculate = calculate)
+        if calc: hd.calc()
+        print(calc)
+        #hd.phi_wg = -float(entry_phi_wg.get())*np.pi/180
+        plot_view_harmonic_drive(calc = calc)
     elif check_var_array_flexspline_tooth.get() == 1:
+        hd.calc_flexspline_kinematics()
+        hd.calc_circular_spline_flank()
         plot_view_array_flexspline_tooth()
     elif check_var_3_array_flexspline_tooth.get() == 1:
+        hd.calc_flexspline_kinematics()
+        hd.calc_dynamic_spline_flank()
         plot_view_3_array_flexspline_tooth()
 
     canvas.draw()
@@ -165,23 +165,23 @@ def update_entry(entry, value):
 
 def plot_view_tooth():
     fs_flank = fs.flank
-    ax.plot(fs_flank[:,0], fs_flank[:,1], c = "darkblue", zorder = 3, lw = 2)
+    plot_va(ax, fs_flank, c = "darkblue", zorder = 3, lw = 2)
     
-    ALPHA = np.linspace(0,np.pi/fs.z,1000)
-    ax.plot(fs.d_i/2*np.cos(ALPHA), fs.d_i/2*np.sin(ALPHA), lw = 2, c = "darkblue")
+    ALPHA = np.linspace(0, np.pi/fs.z, 100)
+    plot_va(ax, fs.d_i/2 * np.array([np.cos(ALPHA), np.sin(ALPHA)]).T, c = "darkblue")
     
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     
-    gear = fs.gear()
-    ax.plot(gear[:,0], gear[:,1], lw = 1, c = "darkblue")
+    gear = fs.gear_undeformed()
+    plot_va(ax, fs.gear_undeformed(), lw = 1, c = "darkblue")
     
-    #Circles 
-    plot_circle(ax, fs.d_i/2, lw = 1, c = "darkblue")
-    plot_circle(ax, fs.d_nf/2, ls = "dashed", lw = 1, c = "black")
-    plot_circle(ax, fs.d_f/2, ls = "dashed", lw = 1, c = "black")
-    plot_circle(ax, fs.d/2, ls = "dashdot", lw = 1, c = "black")
-    plot_circle(ax, fs.d_h/2, ls = "dashed", lw = 1, c = "black")
+    #Circles
+    plot_circle(ax, fs.d_i/2, num_of_discretization = 1000, lw = 1, c = "darkblue")
+    plot_circle(ax, fs.d_nf/2, num_of_discretization = 1000, ls = "dashed", lw = 1, c = "black")
+    plot_circle(ax, fs.d_f/2, num_of_discretization = 1000, ls = "dashed", lw = 1, c = "black")
+    plot_circle(ax, fs.d/2, num_of_discretization = 1000, ls = "dashdot", lw = 1, c = "black")
+    plot_circle(ax, fs.d_h/2, num_of_discretization = 1000, ls = "dashed", lw = 1, c = "black")
     
     for i in range(2, 6):
         plot_circle(ax, getattr(fs, f'r_fl_{i}'), center = getattr(fs, f'm_{i}'), ls = "dashed", lw = 1, c = "lightcoral")
@@ -192,14 +192,13 @@ def plot_view_tooth():
 
     ax.plot([fs.d_i/2-fs.d_i/100,fs.d_h/2+fs.d_h/100],[0,0], ls = "dashdot", lw = 1, c = "k")
 
-    #TODO
     plot_settings(ax)
     
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
 
 def plot_view_fs_gear():
-    plot_polygon(ax, fs.polygon(), 
+    plot_polygon(ax, fs.polygon_undeformed(), 
                       ec = "black",
                       lw = 1,
                       fc = "lightblue")
@@ -211,14 +210,9 @@ def plot_view_fs_gear():
     
     plot_settings(ax)
 
-def plot_view_harmonic_drive(calculate = True):
+def plot_view_harmonic_drive(calc = True):
     global patch_cs
-    if calculate:
-        hd.calculate_kinematics()
-        hd.calculate_flank_cs()
-        hd.calculate_flank_ds()
-        hd.calculate_bearing_kinematics()
-        
+    if not animation_running:
         #---Circular Spline---
         color = 'darkgrey'
         plot_coordinate_system(ax, length=wg.b/2, phi=0, facecolor = color) #CS0
@@ -229,7 +223,7 @@ def plot_view_harmonic_drive(calculate = True):
                                       fc = (color, 0.8))
         except:
             print('Plot Error Circular Spline')
-        
+    
     update_rotation()
             
     R = (wg.a + hd.q_nf + fs.s_st/2 + fs.h_t)*1.11
@@ -240,9 +234,6 @@ def plot_view_harmonic_drive(calculate = True):
 
 def update_rotation():
     
-    hd.calculate_CS_2_i()
-    hd.calculate_bearing()
-
     #---Wavegenerator---
     color = 'deepskyblue'
     plot_coordinate_system(ax, length=wg.b/2, phi=hd.phi_wg, facecolor = color) #CS1
@@ -250,7 +241,7 @@ def update_rotation():
     #ax.plot(profil_wg_phi_wg[:,0], profil_wg_wg[:,1])
     #ax.plot([0,np.cos(phi_wg)*a_el],[0,np.sin(phi_wg)*a_el], ls = 'dashed',lw = 1, c = "darkviolet" , alpha = 0.5)
     try:
-        plot_polygon(ax, wg.polygon(phi=hd.phi_wg),
+        plot_polygon(ax, wg.polygon(),
                             ec = "black",
                             lw = 1,
                             fc = (color, 0.8))
@@ -272,7 +263,7 @@ def update_rotation():
     #neutral_fibre_phi_wg = hd.neutral_fibre_rotated(phi_wg)
     #ax.plot(neutral_fibre_phi_wg[:,0], neutral_fibre_phi_wg[:,1], ls = "-", lw = 1, c = "black")
     try:
-        plot_polygon(ax, fs.polygon_deformed(),
+        plot_polygon(ax, fs.polygon(),
                             ec = "black",
                             lw = 1,
                             fc = (color, 0.8))
@@ -285,7 +276,9 @@ def update_rotation():
     r_z = hd.r_z
     ax.plot(r_z[:,0], r_z[:,1], '--', lw = 1, c = "r")
     ax.arrow(0,0,fs.r_z_i[0,0],fs.r_z_i[0,1], color = 'red', lw=1, head_length=2, head_width=0.8, length_includes_head=True)
-        
+    
+    #TODO
+    #TRANSFORM(fs.toooth, )
     tooth_phi_wg = fs.r_z_i[0] + np.array([np.dot(fs.CS_2_i[0], xy) for xy in fs.tooth])
     ax.plot(tooth_phi_wg[:,0], tooth_phi_wg[:,1], lw = 2, c = "darkblue")
     
@@ -300,45 +293,34 @@ def update_rotation():
     #---Dynamic Spline---
     color = 'fuchsia'
     plot_coordinate_system(ax, length=wg.b/2, phi=hd.phi_ds, facecolor = color) #CS3
+    ds.polygon()
     try:
-        plot_polygon(ax, ds.polygon(phi = hd.phi_ds),
+        plot_polygon(ax, ds.polygon(),
                             ec = "black",
                             lw = 1,
                             fc = (color, 0.5))
     except:
         print('Plot Error Dynamic Spline')
-    
        
-def plot_view_array_flexspline_tooth():
-    tooth = fs.tooth
-    
-    hd.calculate_kinematics()
-    flank_cs = hd.calculate_flank_cs()       
-        
-    ax.plot(hd.r_z[:,0], hd.r_z[:,1], '--', lw = 1, c = "r")
+def plot_view_array_flexspline_tooth():    
+    plot_va(ax, hd.r_z, ls = 'dashed', lw = 1, c = 'r')        
     
     for i in range(0,len(hd.r_z), int(len(hd.r_z)/100)):
-        tooth_i = np.array([hd.r_z[i] + np.dot(hd.CS_2[i], xy) for xy in tooth])
-        ax.plot(tooth_i[:,0], tooth_i[:,1], lw = 1, c = "darkblue")
+        tooth_i = TRANSFORM(fs.tooth, hd.CS_2[i],  hd.r_z[i])
+        plot_va(ax, tooth_i, lw = 1, c = 'darkblue')
     
-    ax.plot(flank_cs[:,0], flank_cs[:,1], '+r')
-    
+    plot_va(ax, cs.flank, marker = '+', color = 'red')
+
     plot_settings(ax)
     
 def plot_view_3_array_flexspline_tooth():
-    fs.calculate_tooth()
-    tooth = fs.tooth
-    
-    hd.calculate_kinematics()
-    flank_ds = hd.calculate_flank_ds()
-    
-    ax.plot(hd._3_r_z[:,0], hd._3_r_z[:,1], '--', lw = 1, c = "r")
+    plot_va(ax, hd._3_r_z, ls = 'dashed', lw = 1, c = 'r')
     
     for i in range(0,len(hd._3_r_z), int(len(hd._3_r_z)/100)):
-        _3_tooth_i = np.array([hd._3_r_z[i] + np.dot(hd._3_CS_2[i], xy) for xy in tooth])
-        ax.plot(_3_tooth_i[:,0], _3_tooth_i[:,1], lw = 1, c = "darkblue")
-        
-    ax.plot(flank_ds[:,0], flank_ds[:,1], '+r')
+        _3_tooth_i = TRANSFORM(fs.tooth, hd._3_CS_2[i], hd._3_r_z[i])
+        plot_va(ax, _3_tooth_i, lw = 1, c = 'darkblue')
+    
+    plot_va(ax, ds.flank, marker = '+', color = 'red')
         
     plot_settings(ax)
 
@@ -385,35 +367,16 @@ def start_stop_animation():
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
-def initial():
-    hd.i = -20
-    
-    fs.d_i = 75
-    fs.s_st = 2.5
-    fs.d_nf = 77.5
-    fs.d_f = 80
-    fs.d = 83
-    fs.d_h = 86
-    
-    fs.c = 1
-    fs.r_fh = 8
-    fs.r_ff = 8
-    fs.r_hr = 1
-    fs.r_fr = 1
-    
-    br.d_br = 5
-    br.n = 20
-
 #objects
 fs = Flexspline()
-wg = Wavegenerator(shape = 2)
+wg = Wavegenerator(shape = 1)
 cs = CircularSpline()
 ds = DynamicSpline()
 br = Bearing()
 hd = HarmonicDrive(fs, wg, cs, ds, br)
 
 #change inital paramter
-initial()
+hd.initial()
 
 #root window
 root = tk.Tk()
@@ -424,12 +387,10 @@ root.title("Harmonic Drive")
 fig = plt.Figure(figsize=(10, 10), dpi=100)
 ax = fig.add_subplot()
 
-patch_cs = []
-
 #animation
 animation_running = False
 animation_instance = []
-update_list = []
+patch_cs = []
 
 #FigureCanvasTkAgg to integrate the Matplotlib graphic into Tkinter
 frame_plot = ttk.Frame(root)
@@ -548,7 +509,7 @@ frame_plot_h_d.pack(side=tk.TOP, fill='x', padx=1, pady=1)
 ttk.Label(frame_plot_h_d, text="Plot Harmonic Drive Parameter").grid(row=0, column=0, columnspan=2)
 
 entry_phi_wg = create_entry_frame(frame_plot_h_d, "Drive Angle Wavegenerator | phi_wg", hd.phi_wg * 180/np.pi, 1)
-entry_phi_wg.bind("<Return>", (lambda event: update_plot(calculate = False)))
+entry_phi_wg.bind("<Return>", (lambda event: update_plot(calc = False)))
 
 # Button for Animation
 button_start_stop = ttk.Button(root, text="Start/Stop", command=start_stop_animation)
