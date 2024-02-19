@@ -10,17 +10,9 @@ import matplotlib.animation as animation
 import matplotlib.patches as mpl_patches
 
 import tkinter as tk
-from tkinter import ttk
+import tkinter.ttk as ttk
 
 from harmonic_drive import *
-
-def create_entry_frame(parent_frame, label_text, default_value, row):
-    ttk.Label(parent_frame, text=label_text).grid(row=row, column=0, sticky=tk.W)
-    entry = ttk.Entry(parent_frame)
-    entry.grid(row=row, column=1, sticky=tk.E)
-    entry.insert(0, default_value)
-    entry.bind("<Return>", (lambda event: update_plot()))
-    return entry
 
 def plot_settings(ax):
     ax.axis('equal')
@@ -45,11 +37,55 @@ def plot_coordinate_system(ax, length, phi, x_o = 0, y_o = 0, **kwargs):
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
-def close():
-   root.destroy()
-   root.quit()
+def create_entry_frame(parent_frame, description, parameter, default_value, row, readonly = False):
+    frame = tk.Frame(master=parent_frame)
+    frame.grid(row=row, column=0, sticky="w")
+    tk.Label(master=frame, text=description).pack()
+    
+    frame = tk.Frame(master=parent_frame)
+    frame.grid(row=row, column=1, sticky="e")
+    tk.Label(master=frame, text=parameter).pack()
+    
+    frame = tk.Frame(master=parent_frame)
+    frame.grid(row=row, column=2, sticky="w")
+    ent = tk.Entry(master=frame)
+    ent.insert(0, default_value)
+    ent.bind("<Return>", (lambda event: update_plot()))
+    ent.pack()
+    
+    if readonly: ent.configure(state="readonly")
+    
+    return ent
 
-def update_checkboxes(current_var):
+def create_checkbox(parent_frame, description, command, row):
+    check_var = tk.BooleanVar(window)
+    
+    frame = tk.Frame(master=parent_frame)
+    frame.grid(row=row, column=0, sticky="e", columnspan = 2)
+    tk.Label(master=frame, text=description).pack()
+    
+    if command == "update_checkbox_wg":
+        checkbox = ttk.Checkbutton(master = parent_frame,
+                                   variable=check_var,
+                                   command=lambda: update_checkbox_wg(check_var))
+    if command == "update_checkbox_view":
+        checkbox = ttk.Checkbutton(master = parent_frame,
+                                   variable=check_var,
+                                   command=lambda: update_checkbox_view(check_var))
+    else:
+        checkbox = ttk.Checkbutton(master = parent_frame,
+                                   variable=check_var)
+        
+    checkbox.grid(row=row, column=2, sticky = "w")
+
+    return check_var
+
+
+def close():
+   window.destroy()
+   window.quit()
+
+def update_checkbox_view(current_var):
     if current_var.get() == 1:
         if current_var == check_var_tooth:
             check_var_gear.set(0)
@@ -77,7 +113,7 @@ def update_checkboxes(current_var):
             check_var_harmonic_drive.set(0)
             check_var_array_flexspline_tooth.set(0)
             
-def update_checkboxes_wg(current_var):
+def update_checkbox_wg(current_var):
     if current_var.get() == 1:
         if current_var == check_var_elliptical:
             check_var_345polynomial.set(0)
@@ -130,7 +166,7 @@ def update_plot(calc = True):
     elif check_var_harmonic_drive.get() == 1:
         if calc: hd.calc()
         print(calc)
-        #hd.phi_wg = -float(entry_phi_wg.get())*np.pi/180
+        hd.phi_wg = -float(entry_phi_wg.get())*np.pi/180
         plot_view_harmonic_drive(calc = calc)
     elif check_var_array_flexspline_tooth.get() == 1:
         hd.calc_flexspline_kinematics()
@@ -159,7 +195,7 @@ def update_entrys():
 
 def update_entry(entry, value):
     entry.configure(state="normal")
-    entry.delete(0, "end")
+    entry.delete(0, tk.END)
     entry.insert(0, value)
     entry.configure(state="readonly")
 
@@ -334,7 +370,7 @@ def update_animation(frame):
     phi_wg = -frame/2*np.pi/180
     hd.phi_wg = phi_wg
     update_rotation()
-    entry_phi_wg.delete(0, "end")
+    entry_phi_wg.delete(0, tk.END)
     entry_phi_wg.insert(0, int(-phi_wg*180/np.pi))
 
     return ax.get_children()
@@ -348,7 +384,7 @@ def start_stop_animation():
             
             animation_instance = animation.FuncAnimation(fig=fig, func=update_animation,
                                                               frames = 360*2, interval=5, repeat=True)#, blit=True)
-            root.update()
+            window.update()
             canvas.draw()
         
             if check_var_safe_animation.get() == 1:
@@ -378,10 +414,10 @@ hd = HarmonicDrive(fs, wg, cs, ds, br)
 #change inital paramter
 hd.initial()
 
-#root window
-root = tk.Tk()
-root.iconbitmap("icon.ico")
-root.title("Harmonic Drive")
+#window
+window = tk.Tk()
+window.iconbitmap("icon.ico")
+window.title("Harmonic Drive")
 
 #figure and axes for Matplotlib
 fig = plt.Figure(figsize=(10, 10), dpi=100)
@@ -393,7 +429,7 @@ animation_instance = []
 patch_cs = []
 
 #FigureCanvasTkAgg to integrate the Matplotlib graphic into Tkinter
-frame_plot = ttk.Frame(root)
+frame_plot = ttk.Frame(window)
 frame_plot.pack(side=tk.LEFT, fill = 'y')
 
 canvas = FigureCanvasTkAgg(fig, frame_plot)
@@ -406,54 +442,50 @@ canvas_widget.pack()
 toolbar.pack()
 
 # Entrys
-# frame_flexspline
-frame_flexspline = ttk.Frame(root)
-frame_flexspline.pack(side=tk.TOP, fill='x', padx=1, pady=1)
-ttk.Label(frame_flexspline, text="Flexspline Parameter").grid(row=0, column=0, columnspan=2)
+frame_entrys = tk.Frame(window)
+frame_entrys.pack(side=tk.TOP, padx=1, pady=1)
 
-entry_d_i = create_entry_frame(frame_flexspline, "Inner Diameter | d_i", fs.d_i, 1)
-entry_s_st = create_entry_frame(frame_flexspline, "Sprocket Thickness | s_st", fs.s_st, 2)
-entry_d_nf = create_entry_frame(frame_flexspline, "Neutral Fiber Diameter | d_nf", fs.d_nf, 3)
-entry_d_nf.configure(state="readonly")
-entry_d_f = create_entry_frame(frame_flexspline, "Foot Circle Diameter | d_f", fs.d_f, 4)
-entry_d_f.configure(state="readonly")
-entry_d = create_entry_frame(frame_flexspline, "Pitch Circle Diameter | d", fs.d, 5)
-entry_d_h = create_entry_frame(frame_flexspline, "Head Circle Diameter | d_h", fs.d_h, 6)
-entry_z = create_entry_frame(frame_flexspline, "Number of Teeth | z", fs.z, 7)
-entry_z.configure(state="readonly")
+# frame_flexspline
+frame_flexspline = tk.Frame(frame_entrys,
+                            highlightbackground= 'springgreen',
+                            highlightthickness=2)
+frame_flexspline.grid(row=0, column=0, sticky="w")
+tk.Label(frame_flexspline, text="Flexspline Parameter").grid(row=0, column=0, columnspan=3)
+
+entry_d_i  = create_entry_frame(frame_flexspline, "Inner Diameter", "d_i", fs.d_i, 1)
+entry_s_st = create_entry_frame(frame_flexspline, "Sprocket Thickness", "s_st", fs.s_st, 2)
+entry_d_nf = create_entry_frame(frame_flexspline, "Neutral Fiber Diameter", "d_nf", fs.d_nf, 3, readonly = True)
+entry_d_f  = create_entry_frame(frame_flexspline, "Foot Circle Diameter", "d_f", fs.d_f, 4, readonly = True)
+entry_d    = create_entry_frame(frame_flexspline, "Pitch Circle Diameter", "d", fs.d, 5)
+entry_d_h  = create_entry_frame(frame_flexspline, "Head Circle Diameter","d_h", fs.d_h, 6)
+entry_z    = create_entry_frame(frame_flexspline, "Number of Teeth", "z",fs.z, 7, readonly = True)
 
 # frame_tooth
-frame_tooth = ttk.Frame(root)
-frame_tooth.pack(side=tk.TOP, fill='x', padx=1, pady=1)
-ttk.Label(frame_tooth, text="Flexspline Tooth Parameter").grid(row=0, column=0, columnspan=2)
+frame_tooth = tk.Frame(frame_entrys,
+                       highlightbackground= 'springgreen',
+                       highlightthickness=2)
+frame_tooth.grid(row=0, column=1, sticky="w")
+tk.Label(frame_tooth, text="Flexspline Tooth Parameter").grid(row=0, column=0, columnspan=3)
 
-entry_alpha = create_entry_frame(frame_tooth, "Tooth Flank Angle | alpha", fs.alpha * 180/np.pi, 1)
-entry_c = create_entry_frame(frame_tooth, "Tooth Space Ratio | c", fs.c, 2)
-entry_r_fh = create_entry_frame(frame_tooth, "Head Flank Radius | r_fh", fs.r_fh, 3)
-entry_r_ff = create_entry_frame(frame_tooth, "Foot Flank Radius | r_ff", fs.r_ff, 4)
-entry_r_hr = create_entry_frame(frame_tooth, "Head Rounding | r_hr", fs.r_hr, 5)
-entry_r_fr = create_entry_frame(frame_tooth, "Foot Rounding | r_fr", fs.r_fr, 6)
+entry_alpha = create_entry_frame(frame_tooth, "Tooth Flank Angle", "alpha", fs.alpha * 180/np.pi, 1)
+entry_c     = create_entry_frame(frame_tooth, "Tooth Space Ratio", "c", fs.c, 2)
+entry_r_fh  = create_entry_frame(frame_tooth, "Head Flank Radius", "r_fh", fs.r_fh, 3)
+entry_r_ff  = create_entry_frame(frame_tooth, "Foot Flank Radius", "r_ff", fs.r_ff, 4)
+entry_r_hr  = create_entry_frame(frame_tooth, "Head Rounding", "r_hr", fs.r_hr, 5)
+entry_r_fr  = create_entry_frame(frame_tooth, "Foot Rounding", "r_fr", fs.r_fr, 6)
 
 # frame_wavegenerator
-frame_wavegenerator = ttk.Frame(root)
-frame_wavegenerator.pack(side=tk.TOP, fill='x', padx=1, pady=1)
-ttk.Label(frame_wavegenerator, text="Wavegenerator Parameter").grid(row=0, column=0, columnspan=2)
+frame_wavegenerator = tk.Frame(window,
+                               highlightbackground= 'deepskyblue',
+                               highlightthickness=2)
+frame_wavegenerator.pack(side=tk.TOP, padx=1, pady=1)
+tk.Label(frame_wavegenerator, text="Wavegenerator Parameter").grid(row=0, column=0, columnspan=3)
 
-entry_a = create_entry_frame(frame_wavegenerator, "Large Semi-Axis | a", wg.a, 1)
-entry_a.configure(state="readonly")
-entry_b = create_entry_frame(frame_wavegenerator, "Small Semi-Axis | b", wg.b, 2)
-entry_b.configure(state="readonly")
-entry_arc = create_entry_frame(frame_wavegenerator, "Arc | gamma", wg.arc * 180/np.pi, 3)
-
-check_var_elliptical = tk.BooleanVar(root)
-checkbox_elliptical = ttk.Checkbutton(root, text="Elliptical", variable=check_var_elliptical,
-                                      command=lambda: update_checkboxes_wg(check_var_elliptical))
-checkbox_elliptical.pack(padx=1, pady=1)
-
-check_var_345polynomial = tk.BooleanVar(root)
-checkbox_345polynomial = ttk.Checkbutton(root, text="345polynomial", variable=check_var_345polynomial,
-                                      command=lambda: update_checkboxes_wg(check_var_345polynomial))
-checkbox_345polynomial.pack(padx=1, pady=1)
+entry_a   = create_entry_frame(frame_wavegenerator, "Large Semi-Axis", "a", wg.a, 1, readonly = True)
+entry_b   = create_entry_frame(frame_wavegenerator, "Small Semi-Axis", "b", wg.b, 2, readonly = True)
+entry_arc = create_entry_frame(frame_wavegenerator, "Arc", "gamma", wg.arc * 180/np.pi, 3)
+check_var_elliptical    = create_checkbox(frame_wavegenerator, "Elliptical", "update_checkbox_wg", 4)
+check_var_345polynomial = create_checkbox(frame_wavegenerator, "345polynomial", "update_checkbox_wg", 5)
 
 if wg.shape == 'elliptical':
     check_var_345polynomial.set(0)
@@ -465,77 +497,64 @@ elif wg.shape == '345polynomial':
     entry_arc.configure(state="normal")
 
 # frame_harmonic_drive
-frame_harmonic_drive = ttk.Frame(root)
-frame_harmonic_drive.pack(side=tk.TOP, fill='x', padx=1, pady=1)
-ttk.Label(frame_harmonic_drive, text="Harmonic Drive Parameter").grid(row=0, column=0, columnspan=2)
+frame_harmonic_drive = tk.Frame(window,
+                                highlightbackground= 'black',
+                                highlightthickness=2)
+frame_harmonic_drive.pack(side=tk.TOP, padx=1, pady=1)
+tk.Label(frame_harmonic_drive, text="Harmonic Drive Parameter").grid(row=0, column=0, columnspan=3)
 
-entry_i = create_entry_frame(frame_harmonic_drive, "Transmission Ratio (|i_wg->ds|) | i", -hd.i, 1)
-entry_z_fs = create_entry_frame(frame_harmonic_drive, "Number of teeth Flexspline | z_fs", fs.z, 2)
-entry_z_fs.configure(state="readonly")
-entry_z_cs = create_entry_frame(frame_harmonic_drive, "Number of teeth Circular Spline | z_cs", cs.z, 3)
-entry_z_cs.configure(state="readonly")
-entry_z_ds = create_entry_frame(frame_harmonic_drive, "Number of teeth Dynamic Spline | z_ds", ds.z, 4)
-entry_z_ds.configure(state="readonly")
-entry_q_nf = create_entry_frame(frame_harmonic_drive, "Equidistant Distance Neutral Fiber | q_nf", hd.q_nf, 5)
-entry_q_nf.configure(state="readonly")
+entry_i    = create_entry_frame(frame_harmonic_drive, "Transmission Ratio (|i_wg->ds|)", "i", -hd.i, 1)
+entry_z_fs = create_entry_frame(frame_harmonic_drive, "Number of teeth Flexspline", "z_fs", fs.z, 2, readonly = True)
+entry_z_cs = create_entry_frame(frame_harmonic_drive, "Number of teeth Circular Spline", "z_cs", cs.z, 3, readonly = True)
+entry_z_ds = create_entry_frame(frame_harmonic_drive, "Number of teeth Dynamic Spline", "z_ds", ds.z, 4, readonly = True)
+entry_q_nf = create_entry_frame(frame_harmonic_drive, "Equidistant Distance Neutral Fiber", "q_nf", hd.q_nf, 5, readonly = True)
 
 # frame_bearing
-frame_bearing = ttk.Frame(root)
-frame_bearing.pack(side=tk.TOP, fill='x', padx=1, pady=1)
-ttk.Label(frame_bearing, text="Bearing Parameter").grid(row=0, column=0, columnspan=2)
+frame_bearing = tk.Frame(window,
+                         highlightbackground= 'grey',
+                         highlightthickness=2)
+frame_bearing.pack(side=tk.TOP, padx=1, pady=1)
+ttk.Label(frame_bearing, text="Bearing Parameter").grid(row=0, column=0, columnspan=3)
 
-entry_d_br = create_entry_frame(frame_bearing, "Diameter Wavegenertor Bearing Rolling element | d_br", br.d_br, 1)
-entry_n    = create_entry_frame(frame_bearing, "Number of bearing rollers | n", br.n, 2)
+entry_d_br = create_entry_frame(frame_bearing, "Diameter Bearing Rolling element", "d_br", br.d_br, 1)
+entry_n    = create_entry_frame(frame_bearing, "Number of bearing rollers", "n", br.n, 2)
 
-#CheckBoxes
-check_var_tooth = tk.BooleanVar(root)
-checkbox_tooth = ttk.Checkbutton(root, text="View Flexspline Tooth", variable=check_var_tooth,
-                                      command=lambda: update_checkboxes(check_var_tooth))
-checkbox_tooth.pack(padx=1, pady=1)
+# frame_selection
+frame_selection = tk.Frame(window,
+                           highlightbackground= 'black',
+                           highlightthickness=2)
+frame_selection.pack(side=tk.TOP, padx=1, pady=1)
+tk.Label(frame_selection, text="Select View").grid(row=0, column=0, columnspan=3)
 
-check_var_gear = tk.BooleanVar(root)
-checkbox_gear = ttk.Checkbutton(root, text="View Flexspline", variable=check_var_gear,
-                                     command=lambda: update_checkboxes(check_var_gear))
-checkbox_gear.pack(padx=1, pady=1)
+check_var_gear                     = create_checkbox(frame_selection, "Flexspline", "update_checkbox_view", 1)
+check_var_tooth                    = create_checkbox(frame_selection, "Flexspline Tooth", "update_checkbox_view", 2)
+check_var_array_flexspline_tooth   = create_checkbox(frame_selection, "Array of Flexspline Tooth", "update_checkbox_view", 3)
+check_var_3_array_flexspline_tooth = create_checkbox(frame_selection, "Array of Flexspline Tooth", "update_checkbox_view", 4)
+check_var_harmonic_drive           = create_checkbox(frame_selection, "Harmonic Drive Gear", "update_checkbox_view", 5)
 
-check_var_harmonic_drive = tk.BooleanVar(root)
-checkbox_harmonic_drive = ttk.Checkbutton(root, text="View Harmonic Drive", variable=check_var_harmonic_drive,
-                                     command=lambda: update_checkboxes(check_var_harmonic_drive))
-checkbox_harmonic_drive.pack(padx=1, pady=1)
+button_update = ttk.Button(frame_selection, text="update", command=update_plot)
+button_update.grid(row = 6, column = 0, columnspan=3)
 
-#Entry Plot Harmonic Drive
-frame_plot_h_d = ttk.Frame(root)
-frame_plot_h_d.pack(side=tk.TOP, fill='x', padx=1, pady=1)
-ttk.Label(frame_plot_h_d, text="Plot Harmonic Drive Parameter").grid(row=0, column=0, columnspan=2)
+# frame_plot_settings
+frame_plot_settings = tk.Frame(window,
+                               highlightbackground= 'black',
+                               highlightthickness=2)
+frame_plot_settings.pack(side=tk.TOP, padx=1, pady=1)
+ttk.Label(frame_plot_settings, text="Plot Settings").grid(row=0, column=0, columnspan=3)
 
-entry_phi_wg = create_entry_frame(frame_plot_h_d, "Drive Angle Wavegenerator | phi_wg", hd.phi_wg * 180/np.pi, 1)
+entry_phi_wg = create_entry_frame(frame_plot_settings, "Drive Angle Wavegenerator", "|phi_wg|", -hd.phi_wg * 180/np.pi, 1)
 entry_phi_wg.bind("<Return>", (lambda event: update_plot(calc = False)))
 
-# Button for Animation
-button_start_stop = ttk.Button(root, text="Start/Stop", command=start_stop_animation)
-button_start_stop.pack(padx=1, pady=1)
+button_start_stop = ttk.Button(frame_plot_settings, text="Start/Stop Animation", command=start_stop_animation)
+button_start_stop.grid(row = 2, column = 0, columnspan=3)
 
-check_var_safe_animation = tk.BooleanVar(root)
-checkbox_safe_animation = ttk.Checkbutton(root, text="Safe Animation", variable=check_var_safe_animation)
-checkbox_safe_animation.pack(padx=1, pady=1)
+check_var_safe_animation = create_checkbox(frame_plot_settings, "Safe animation.mp4", "-", 3)
         
 #---
 
-check_var_array_flexspline_tooth = tk.BooleanVar(root)
-checkbox_array_flexspline_tooth = ttk.Checkbutton(root, text="Array of Flexspline Tooth", variable=check_var_array_flexspline_tooth,
-                                     command=lambda: update_checkboxes(check_var_array_flexspline_tooth))
-checkbox_array_flexspline_tooth.pack(padx=1, pady=1)
-
-check_var_3_array_flexspline_tooth = tk.BooleanVar(root)
-checkbox_3_array_flexspline_tooth = ttk.Checkbutton(root, text="Array of Flexspline Tooth (CS3)", variable=check_var_3_array_flexspline_tooth,
-                                     command=lambda: update_checkboxes(check_var_3_array_flexspline_tooth))
-checkbox_3_array_flexspline_tooth.pack(padx=1, pady=1)
-
-#Buttons
-button_close = ttk.Button(root, text="close", command=close)
+# button_close
+button_close = ttk.Button(window, text="close", command=close)
 button_close.pack(padx=1, pady=1)
 
-button_update = ttk.Button(root, text="update", command=update_plot)
-button_update.pack(padx=1, pady=1)
 
-root.mainloop()
+window.mainloop()
