@@ -67,23 +67,18 @@ def create_checkbox(parent_frame, description, command, row):
     if command == "update_checkbox_wg":
         checkbox = ttk.Checkbutton(master = parent_frame,
                                    variable=check_var,
-                                   command=lambda: update_checkbox_wg(check_var))
-    if command == "update_checkbox_view":
+                                   command=lambda:update_checkbox_wg(check_var))
+    elif command == "update_checkbox_view":
         checkbox = ttk.Checkbutton(master = parent_frame,
                                    variable=check_var,
-                                   command=lambda: update_checkbox_view(check_var))
+                                   command=lambda:update_checkbox_view(check_var))
     else:
-        checkbox = ttk.Checkbutton(master = parent_frame,
-                                   variable=check_var)
+         checkbox = ttk.Checkbutton(master = parent_frame,
+                                    variable=check_var)
         
     checkbox.grid(row=row, column=2, sticky = "w")
 
     return check_var
-
-
-def close():
-   window.destroy()
-   window.quit()
 
 def update_checkbox_view(current_var):
     if current_var.get() == 1:
@@ -165,7 +160,6 @@ def update_plot(calc = True):
         plot_view_fs_gear()
     elif check_var_harmonic_drive.get() == 1:
         if calc: hd.calc()
-        print(calc)
         hd.phi_wg = -float(entry_phi_wg.get())*np.pi/180
         plot_view_harmonic_drive(calc = calc)
     elif check_var_array_flexspline_tooth.get() == 1:
@@ -372,7 +366,8 @@ def update_animation(frame):
     update_rotation()
     entry_phi_wg.delete(0, tk.END)
     entry_phi_wg.insert(0, int(-phi_wg*180/np.pi))
-
+    window.update()
+    
     return ax.get_children()
 
 def start_stop_animation():
@@ -386,11 +381,11 @@ def start_stop_animation():
                                                               frames = 360*2, interval=5, repeat=True)#, blit=True)
             window.update()
             canvas.draw()
-        
+
             if check_var_safe_animation.get() == 1:
                 print("Calculate Animation")
-                writervideo = animation.FFMpegWriter(fps=30, bitrate=30000)#, metadata=dict(artist='Me'), bitrate=1800, extra_args=['-vcodec', 'libx264', '-pix_fmt', 'yuv420p'])
-                animation_instance.save('animation.mp4', writer=writervideo) 
+                writervideo = animation.FFMpegWriter(fps=30, bitrate=1800)#, extra_args=['-vcodec', 'libx264', '-pix_fmt', 'yuv420p'])
+                animation_instance.save('animation/animation.gif', writer=writervideo) 
                 print("Save Animation")
         else:
             animation_instance.resume()
@@ -548,11 +543,15 @@ entry_phi_wg.bind("<Return>", (lambda event: update_plot(calc = False)))
 button_start_stop = ttk.Button(frame_plot_settings, text="Start/Stop Animation", command=start_stop_animation)
 button_start_stop.grid(row = 2, column = 0, columnspan=3)
 
-check_var_safe_animation = create_checkbox(frame_plot_settings, "Safe animation.mp4", "-", 3)
+check_var_safe_animation = create_checkbox(frame_plot_settings, "Safe animation.mp4", "-y", 3)
         
 #---
 
-# button_close
+# close button
+def close():
+   window.destroy()
+   window.quit()
+
 button_close = ttk.Button(window, text="close", command=close)
 button_close.pack(padx=1, pady=1)
 
