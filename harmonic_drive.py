@@ -242,7 +242,7 @@ class Flexspline():
         returns the tooth flank and the corresponding normal vectors (normalized)
         in the tooth coordinate system
         ! recalculation of the tooth flank according to num_of_discretization !'''
-        flank = self.calculate_flank(num_of_discretization = num_of_discretization)
+        flank = self.calculate_flank(num_of_discretization = num_of_discretization*10+1)
         flank = np.array([np.array([-y,x-self.d_nf/2]) for x,y in flank])
         
         #TODO More precise way to calculate the normal vector from the 
@@ -251,7 +251,7 @@ class Flexspline():
         normal = np.array([[y,-x]for x,y in tangent])
         normal_flank = np.array([1/np.linalg.norm(n)*n for n in normal])
 
-        return flank, normal_flank
+        return flank[0:len(flank):10], normal_flank[0:len(flank):10]
     
     def calculate_tooth(self):
         '''
