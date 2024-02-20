@@ -255,7 +255,7 @@ def plot_view_harmonic_drive(calc = True):
             print('Plot Error Circular Spline')
     
     update_rotation()
-            
+    
     R = (wg.a + hd.q_nf + fs.s_st/2 + fs.h_t)*1.11
     plot_settings(ax) 
     ax.set_xlim([-R,R])
@@ -521,10 +521,10 @@ frame_selection = tk.Frame(window,
 frame_selection.pack(side=tk.TOP, padx=1, pady=1)
 tk.Label(frame_selection, text="Select View").grid(row=0, column=0, columnspan=3)
 
-check_var_gear                     = create_checkbox(frame_selection, "Flexspline", "update_checkbox_view", 1)
-check_var_tooth                    = create_checkbox(frame_selection, "Flexspline Tooth", "update_checkbox_view", 2)
-check_var_array_flexspline_tooth   = create_checkbox(frame_selection, "Array of Flexspline Tooth", "update_checkbox_view", 3)
-check_var_3_array_flexspline_tooth = create_checkbox(frame_selection, "Array of Flexspline Tooth", "update_checkbox_view", 4)
+check_var_tooth                    = create_checkbox(frame_selection, "Flexspline Tooth", "update_checkbox_view", 1)
+check_var_gear                     = create_checkbox(frame_selection, "Flexspline", "update_checkbox_view", 2)
+check_var_array_flexspline_tooth   = create_checkbox(frame_selection, "Array of Flexspline Tooth -> CS", "update_checkbox_view", 3)
+check_var_3_array_flexspline_tooth = create_checkbox(frame_selection, "Array of Flexspline Tooth -> DS", "update_checkbox_view", 4)
 check_var_harmonic_drive           = create_checkbox(frame_selection, "Harmonic Drive Gear", "update_checkbox_view", 5)
 
 button_update = ttk.Button(frame_selection, text="update", command=update_plot)
