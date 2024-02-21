@@ -10,6 +10,7 @@ from matplotlib.patches import PathPatch
 from matplotlib.collections import PatchCollection
 
 import time
+import csv
 
 from tqdm import tqdm
 
@@ -620,30 +621,6 @@ class HarmonicDrive():
         self.calc_flexspline()
         self.calc_bearing()
 
-    def initial(self):
-        self.i = -20
-        
-        self.fs.d_i = 75
-        self.fs.s_st = 2.5
-        self.fs.d = 83
-        self.fs.d_h = 86
-        
-        self.fs.alpha = 20*np.pi/180
-        self.fs.c = 1
-        self.fs.r_fh = 8
-        self.fs.r_ff = 8
-        self.fs.r_hr = 1
-        self.fs.r_fr = 1
-        
-        self.br.d_br = 5
-        self.br.n = 20
-        
-        self.wg.arc = 4*np.pi/180
-        
-        self._phi_wg = 0
-        
-        self.update()
-    
     def calc(self):
         print("> calc()")
         self.calc_flexspline_kinematics()
@@ -951,6 +928,85 @@ class HarmonicDrive():
             
         self.br.r_br_i = r_br_i
         
+    def initial(self):
+        self.i = -20
+        
+        self.fs.d_i = 75
+        self.fs.s_st = 2.5
+        self.fs.d = 83
+        self.fs.d_h = 86
+        
+        self.fs.alpha = 20*np.pi/180
+        self.fs.c = 1
+        self.fs.r_fh = 8
+        self.fs.r_ff = 8
+        self.fs.r_hr = 1
+        self.fs.r_fr = 1
+        
+        self.br.d_br = 5
+        self.br.n = 20
+        
+        self.wg.arc = 4*np.pi/180
+        
+        self._phi_wg = 0
+        
+        self.update()
+        
+    def save_config(self, file_name = "parameter"):
+        parameter = {'hd.i': self.i,
+                     'fs.d_i': self.fs.d_i,
+                     'fs.s_st': self.fs.s_st,
+                     'fs.d': self.fs.d,
+                     'fs.d_h': self.fs.d_h,
+                     'fs.alpha': self.fs.alpha,
+                     'fs.c': self.fs.c,
+                     'fs.r_fh': self.fs.r_fh,
+                     'fs.r_ff': self.fs.r_ff,
+                     'fs.r_hr': self.fs.r_hr,
+                     'fs.r_fr': self.fs.r_fr,
+                     'br.d_br': self.br.d_br,
+                     'br.n': self.br.n,
+                     'wg.shape': self.wg.shape,
+                     'wg.arc': self.wg.arc}
+                
+        with open("config/" + file_name + ".csv", "w", newline="") as fp:
+            writer = csv.writer(fp, delimiter=' ')
+            for p in parameter.items():
+                writer.writerow(p)
+                    
+    def load_config(self, file_name = "parameter"):
+        with open("config/" + file_name, "r", newline="") as fp:
+            reader = csv.reader(fp, delimiter=' ')
+            parameter = {}
+            for row in reader:
+                key = row[0]
+                value = row[1]
+                try:
+                    value = float(value)
+                except:
+                    pass
+                parameter[key] = value
+        
+        self.i = parameter['hd.i']
+        self.fs.d_i = parameter['fs.d_i'] 
+        self.fs.s_st = parameter['fs.s_st'] 
+        self.fs.d = parameter['fs.d']
+        self.fs.d_h = parameter['fs.d_h']
+        self.fs.alpha = parameter['fs.alpha']
+        self.fs.c = parameter['fs.c']
+        self.fs.r_fh = parameter['fs.r_fh']
+        self.fs.r_ff = parameter['fs.r_ff']
+        self.fs.r_hr = parameter['fs.r_hr']
+        self.fs.r_fr = parameter['fs.r_fr']
+        self.br.d_br = parameter['br.d_br']
+        self.br.n = parameter['br.n']
+        self.wg.shape = parameter['wg.shape']
+        self.wg.arc = parameter['wg.arc']
+        
+        self.update()
+        
+        return parameter
+ 
 def main():
     fs = Flexspline()
     wg = Wavegenerator()
@@ -975,7 +1031,7 @@ def main():
     #Flexspline
     plot_va(ax, fs.gear())
     plot_va(ax, fs.inside_fibre)
-    plot_polygon(ax, fs.polygon())
+    #plot_polygon(ax, fs.polygon())
     
     #Bearing
     [plot_va(ax, br) for br in br.bearing()]
@@ -983,11 +1039,13 @@ def main():
     
     #Circular Spline
     plot_va(ax, cs.gear())
-    plot_polygon(ax, cs.polygon())
+    #plot_polygon(ax, cs.polygon())
     
     #Dynamic Spline
     plot_va(ax, ds.gear())
-    plot_polygon(ax, ds.polygon(index = True))
+    #plot_polygon(ax, ds.polygon(index = True))
     
+    return fs, wg, cs, ds, br, hd, ax
+
 if __name__ == "__main__":
-    main()
+    fs, wg, cs, ds, br, hd, ax = main()

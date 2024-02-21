@@ -31,7 +31,7 @@ class InventorAPI():
         gencache.EnsureModule('{D98A091D-3A0F-4C3E-B36E-61F62068D488}', 0, 1, 0)
         
         #to be modified:
-        template = "C:\\Users\\Public\\Documents\\Autodesk\\Inventor 2024\\Templates\\de-DE\Standard.ipt"
+        template = "C:\\Users\\Public\\Documents\\Autodesk\\Inventor 2024\\Templates\\de-DE\\Standard.ipt"
         
         self.invDoc = self.oApp.Documents.Add(constants.kPartDocumentObject, template, True)
         self.tg = self.oApp.TransientGeometry
@@ -93,7 +93,7 @@ def main():
     #test run
     api = InventorAPI()
     
-    T = np.linspace(0,2*np.pi,100,endpoint=False)
+    T = np.linspace(0,2*np.pi,1000,endpoint=False)
     
     pnts = np.array([[2*(1-np.cos(t))*np.cos(t),
                       2*(1-np.cos(t))*np.sin(t)] for t in T])
@@ -105,8 +105,8 @@ def main():
     ax.plot(pnts[:,0], pnts[:,1])
     
     #Transfer to Inventor
-    api.pointsToSpline(pnts)
-    #api.pointsToLine(pnts, closed=True)
+    #api.pointsToSpline(pnts)
+    api.pointsToLine(pnts, closed=True)
     #api.pointsToPoints(pnts)
     
 if __name__ == "__main__":

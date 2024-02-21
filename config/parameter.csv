@@ -1,0 +1,16 @@
+hd.i -20.0
+hd.phi_wg 0
+fs.d_i 75.0
+fs.s_st 2.5
+fs.d 83.0
+fs.d_h 86.0
+fs.alpha 0.3490658503988659
+fs.c 1.0
+fs.r_fh 8.0
+fs.r_ff 8.0
+fs.r_hr 0.2
+fs.r_fr 0.2
+br.d_br 5.0
+br.n 20.0
+wg.shape elliptical
+wg.arc 0.06981317007977318

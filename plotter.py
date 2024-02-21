@@ -1,5 +1,7 @@
 import numpy as np
 
+import os, fnmatch
+
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 from matplotlib.collections import PatchCollection
@@ -174,25 +176,54 @@ def update_plot(calc = True):
     canvas.draw()
     print("...ready")
     
-def update_entrys():
-    update_entry(entry_d_nf , fs.d_nf)
-    update_entry(entry_d_f  , fs.d_f)
-    update_entry(entry_z    , fs.z)
+def update_entrys():    
+    update_entry(entry_d_i, fs.d_i)
+    update_entry(entry_s_st, fs.s_st)
+    update_entry(entry_d_nf, fs.d_nf)
+    update_entry(entry_d_f, fs.d_f)
+    update_entry(entry_d, fs.d)
+    update_entry(entry_d_h, fs.d_h)
+    update_entry(entry_z, fs.z)
+    
+    update_entry(entry_alpha, fs.alpha*180/np.pi)
+    update_entry(entry_c, fs.c)
+    update_entry(entry_r_fh, fs.r_fh)
+    update_entry(entry_r_ff, fs.r_ff)
+    update_entry(entry_r_hr, fs.r_hr)
+    update_entry(entry_r_fr, fs.r_fr)
     
     update_entry(entry_a, wg.a)
     update_entry(entry_b, wg.b)
+    update_entry(entry_arc, wg.arc*180/np.pi)
+
+    if wg.shape == 'elliptical':
+        check_var_345polynomial.set(0)
+        check_var_elliptical.set(1)
+        entry_arc.configure(state="readonly")
+    elif wg.shape == '345polynomial':
+        check_var_345polynomial.set(1)
+        check_var_elliptical.set(0)
+        entry_arc.configure(state="normal")
     
-    update_entry(entry_z_fs , fs.z)
-    update_entry(entry_z_cs , cs.z)
-    update_entry(entry_z_ds , ds.z)
-    update_entry(entry_q_nf , hd.q_nf)
+    update_entry(entry_i, -hd.i)
+    update_entry(entry_z_fs, fs.z)
+    update_entry(entry_z_cs, cs.z)
+    update_entry(entry_z_ds, ds.z)
+    update_entry(entry_q_nf, hd.q_nf)
+
+    update_entry(entry_d_br, br.d_br)
+    update_entry(entry_n, br.n)
 
 def update_entry(entry, value):
-    entry.configure(state="normal")
-    entry.delete(0, tk.END)
-    entry.insert(0, value)
-    entry.configure(state="readonly")
-
+    if entry.cget("state") == 'readonly':
+        entry.configure(state="normal")
+        entry.delete(0, tk.END)
+        entry.insert(0, value)
+        entry.configure(state="readonly")
+    else:
+        entry.delete(0, tk.END)
+        entry.insert(0, value)
+        
 def plot_view_tooth():
     fs_flank = fs.flank
     plot_va(ax, fs_flank, c = "darkblue", zorder = 3, lw = 2)
@@ -544,8 +575,43 @@ button_start_stop = ttk.Button(frame_plot_settings, text="Start/Stop Animation",
 button_start_stop.grid(row = 2, column = 0, columnspan=3)
 
 check_var_safe_animation = create_checkbox(frame_plot_settings, "Safe animation.mp4", "-y", 3)
-        
-#---
+
+#frame Load/Save Configuration
+def save_config():
+    hd.save_config(file_name = entry_save_config.get())
+    
+def load_config(*args):
+    hd.load_config(file_name = drop_down.get())
+    update_entrys()
+    update_plot()
+    
+frame_config = tk.Frame(window,
+                             highlightbackground= 'black',
+                             highlightthickness=2)
+
+frame_config.pack(side=tk.TOP, padx=1, pady=1)
+ttk.Label(frame_config, text="Load/Save Configuration").grid(row=0, column=0, columnspan=3)
+
+entry_save_config = create_entry_frame(frame_config, "Save Config", "", "parameter", 1)
+entry_save_config.bind("<Return>", (lambda event: save_config()))
+
+configurations = ['parameter',
+                  'neu']
+
+tk.Label(frame_config, text = "Load Config").grid(row = 2, column = 0)
+
+drop_down_variable = tk.StringVar()
+drop_down = ttk.Combobox(frame_config, textvariable=drop_down_variable)
+drop_down.bind("<<ComboboxSelected>>", load_config)
+drop_down['values'] = fnmatch.filter(os.listdir('config/'), '*.csv')
+drop_down.set("---Select---")
+
+drop_down.grid(row=2, column=2)
+
+
+
+#entry_load_config = create_entry_frame(frame_config, "Load Config", "", "parameter", 2)
+#entry_load_config.bind("<Return>", (lambda event: load_config()))
 
 # close button
 def close():
@@ -555,5 +621,4 @@ def close():
 button_close = ttk.Button(window, text="close", command=close)
 button_close.pack(padx=1, pady=1)
 
-
-window.mainloop()
+#window.mainloop()
