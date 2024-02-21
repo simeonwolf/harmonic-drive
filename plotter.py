@@ -392,7 +392,7 @@ def update_animation(frame):
             if isinstance(artist, mpl_patches.FancyArrow) or isinstance(artist, plt.Line2D) or isinstance(artist, PatchCollection):
                 artist.remove()
     
-    phi_wg = -frame/2*np.pi/180
+    phi_wg = -frame/4*np.pi/180
     hd.phi_wg = phi_wg
     update_rotation()
     entry_phi_wg.delete(0, tk.END)
@@ -409,7 +409,7 @@ def start_stop_animation():
         if not animation_instance:
             
             animation_instance = animation.FuncAnimation(fig=fig, func=update_animation,
-                                                              frames = 360*2, interval=5, repeat=True)#, blit=True)
+                                                              frames = 360*4, interval=5, repeat=True)#, blit=True)
             window.update()
             canvas.draw()
 
@@ -579,6 +579,7 @@ check_var_safe_animation = create_checkbox(frame_plot_settings, "Safe animation.
 #frame Load/Save Configuration
 def save_config():
     hd.save_config(file_name = entry_save_config.get())
+    drop_down['values'] = fnmatch.filter(os.listdir('config/'), '*.csv')
     
 def load_config(*args):
     hd.load_config(file_name = drop_down.get())
@@ -592,7 +593,7 @@ frame_config = tk.Frame(window,
 frame_config.pack(side=tk.TOP, padx=1, pady=1)
 ttk.Label(frame_config, text="Load/Save Configuration").grid(row=0, column=0, columnspan=3)
 
-entry_save_config = create_entry_frame(frame_config, "Save Config", "", "parameter", 1)
+entry_save_config = create_entry_frame(frame_config, "Save Config", "", "---Name + Enter---", 1)
 entry_save_config.bind("<Return>", (lambda event: save_config()))
 
 configurations = ['parameter',
@@ -608,11 +609,6 @@ drop_down.set("---Select---")
 
 drop_down.grid(row=2, column=2)
 
-
-
-#entry_load_config = create_entry_frame(frame_config, "Load Config", "", "parameter", 2)
-#entry_load_config.bind("<Return>", (lambda event: load_config()))
-
 # close button
 def close():
    window.destroy()
@@ -621,4 +617,4 @@ def close():
 button_close = ttk.Button(window, text="close", command=close)
 button_close.pack(padx=1, pady=1)
 
-#window.mainloop()
+window.mainloop()

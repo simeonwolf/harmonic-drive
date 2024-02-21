@@ -807,7 +807,9 @@ class HarmonicDrive():
             sc = np.einsum('ij,ij->i', v_r_flank , n_flank)[:-2]
             
             idx = np.where(sc[:-1] * sc[1:] < 0)[0] + 1
-        
+            
+            if len(idx) == 1:
+                print("bad flexspline tooth parameter")
             if len(idx) == 2:
                 flank_cs.append(r_flank[idx[0]])
             if len(idx) == 3:
