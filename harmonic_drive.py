@@ -102,10 +102,6 @@ class Flexspline():
     represents the Flexspline (FS) of a Harmonic Drive gearbox
     --> generates the initial tooth flank geometry of the Flexspline'''
     def __init__(self):
-        #parameters that trigger a parameter update when changed:
-        self.update_parameter = {'z', 'd_i', 's_st', 'd', 
-                                 'd_h', 'alpha', 'c', 'r_fh', 'r_ff', 
-                                 'r_hr', 'r_fr'}
         
         #---general parameters---:
         self.z      = [] #number of teeth
