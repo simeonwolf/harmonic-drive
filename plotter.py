@@ -344,7 +344,8 @@ def start_stop_animation():
         animation_running = False
         if animation_instance:
             animation_instance.pause()
-            
+
+#%%initialization            
 #------------------------------------------------------------------------------
 #-----------------------------INITIALIZATION-----------------------------------
 #------------------------------------------------------------------------------
@@ -374,7 +375,7 @@ window.iconbitmap("icon.ico")
 window.title("Harmonic Drive")
 
 #figure and axes
-fig = plt.Figure(figsize=(9, 9), dpi=100)
+fig = plt.Figure(figsize=(8, 8), dpi=100)
 fig.tight_layout()
 ax = fig.add_subplot()
 
@@ -383,11 +384,12 @@ animation_running = False
 animation_instance = []
 patch_cs = []
 
+#%%GUI
 #------------------------------------------------------------------------------
 #----------------------------------GUI-----------------------------------------
 #------------------------------------------------------------------------------
 
-#%%FigureCanvasTkAgg to integrate the Matplotlib graphic into Tkinter
+#%%%FigureCanvasTkAgg to integrate the Matplotlib graphic into Tkinter
 frame_plot = ttk.Frame(window)
 canvas = FigureCanvasTkAgg(fig, frame_plot)
 
@@ -398,7 +400,7 @@ toolbar.pack()
 frame_plot.pack(side='left', fill='both', expand=True)
 canvas.get_tk_widget().pack(side='left', fill='both', expand=True)
 
-#%%Notebook for the part-specific parameters
+#%%%Notebook for the part-specific parameters
 lf_parameter = ttk.LabelFrame(window, text='Parameter')
 lf_parameter.pack(side='top', padx=3, pady=3)
 
@@ -511,7 +513,7 @@ notebook.add(frame_br, text='Bearing')
 entry_d_br = create_entry_frame(frame_br, "Diameter Bearing Rolling element", "d_br", br.d_br, 0)
 entry_n    = create_entry_frame(frame_br, "Number of bearing rollers", "n", br.n, 1)
 
-#%%View selection
+#%%%View selection
 lf_view_select = ttk.LabelFrame(window, text='View Selection')
 lf_view_select.pack(side='top', padx=3, pady=3)
 
@@ -533,7 +535,7 @@ for v in views:
 button_update = ttk.Button(lf_view_select, text="update", command=update_plot)
 button_update.pack()
 
-#%%Plot Settings View Harmonic Drive
+#%%%Plot Settings View Harmonic Drive
 lf_plot_settings = ttk.LabelFrame(window, text='Plot Settings View Harmonic Drive')
 lf_plot_settings.pack(side='top', padx=3, pady=3)
 
@@ -584,7 +586,7 @@ ttk.Checkbutton(lf_plot_settings,
                 variable=safe_animation_var).grid(row=8, column = 0, columnspan = 3)
 
 
-#%%Frame Load/Save Configuration
+#%%%Frame Load/Save Configuration
 lf_config = ttk.LabelFrame(window, text='Load/Save Configuration')
 lf_config.pack(side='top', padx=3, pady=3)
 
@@ -616,7 +618,7 @@ drop_down.set("---Select---")
 
 drop_down.grid(row=1, column=1)
 
-#%% Close Button
+#%%% Close Button
 def close():
    window.destroy()
    window.quit()
